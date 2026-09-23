@@ -1,0 +1,235 @@
+import React from 'react';
+
+export default function WalkmanPlayer({
+  playerState,
+  currentSong,
+  isPlaying,
+  canControl,
+  localPosition,
+  duration,
+  progressPercent,
+  formatTime,
+  onPlay,
+  onPause,
+  onNext,
+  onPrev,
+  onSeek,
+  onAddSource,
+  myInfo
+}) {
+  return (
+    <div className="cassette-frame" style={{
+      padding: '20px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Cassette Deck Visual */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '16px',
+      }}>
+        {/* Tape Reels */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '40px',
+          padding: '20px 0',
+          width: '100%',
+          position: 'relative',
+        }}>
+          {/* Left Reel */}
+          <div className={`reel ${isPlaying ? 'spinning' : ''}`} style={{ animationDirection: 'reverse' }}>
+            <div className="reel-inner" />
+          </div>
+
+          {/* Cassette Window / Now Playing */}
+          <div style={{
+            flex: 1,
+            maxWidth: '200px',
+            textAlign: 'center',
+            padding: '0 10px',
+          }}>
+            <div style={{
+              background: 'var(--cassette-display)',
+              borderRadius: '4px',
+              padding: '10px',
+              border: '1px solid #444',
+              minHeight: '60px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+              {currentSong ? (
+                <>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                  }}>
+                    Now Playing
+                  </div>
+                  <div style={{
+                    fontSize: '15px',
+                    color: 'var(--accent)',
+                    fontWeight: 'bold',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '180px',
+                  }}
+                    title={currentSong.title}
+                  >
+                    {currentSong.title}
+                  </div>
+                  {currentSong.addedBy && (
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
+                      marginTop: '2px',
+                    }}>
+                      added by {currentSong.addedBy}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  No song playing
+                  <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                    Add songs to the queue!
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Reel */}
+          <div className={`reel ${isPlaying ? 'spinning' : ''}`}>
+            <div className="reel-inner" />
+          </div>
+        </div>
+
+        {/* Visualizer (active when playing) */}
+        {isPlaying && (
+          <div className="visualizer">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="visualizer-bar" />
+            ))}
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        <div
+          className="progress-bar"
+          onClick={canControl ? onSeek : undefined}
+          style={{ cursor: canControl ? 'pointer' : 'default', width: '100%' }}
+        >
+          <div
+            className="progress-bar-fill"
+            style={{ width: `${Math.min(progressPercent, 100)}%` }}
+          />
+        </div>
+
+        {/* Time Display */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          width: '100%',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+        }}>
+          <span>{formatTime(localPosition)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+
+        {/* Transport Controls */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          width: '100%',
+        }}>
+          {/* Previous */}
+          <button
+            className="walkman-btn"
+            onClick={onPrev}
+            disabled={!canControl || !currentSong}
+            style={{ fontSize: '18px', padding: '8px 12px' }}
+            title="Previous"
+          >
+            ⏮
+          </button>
+
+          {/* Play/Pause */}
+          <button
+            className={`walkman-btn ${!isPlaying ? 'primary' : ''}`}
+            onClick={isPlaying ? onPause : onPlay}
+            disabled={!canControl}
+            style={{
+              fontSize: '24px',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              minWidth: '80px',
+            }}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? '⏸' : '▶️'}
+          </button>
+
+          {/* Next */}
+          <button
+            className="walkman-btn"
+            onClick={onNext}
+            disabled={!canControl || !currentSong}
+            style={{ fontSize: '18px', padding: '8px 12px' }}
+            title="Next"
+          >
+            ⏭
+          </button>
+        </div>
+
+        {/* Status & Add Song */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          borderTop: '1px solid rgba(192,160,96,0.2)',
+          paddingTop: '12px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: isPlaying ? 'var(--success)' : '#666',
+            }} />
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {isPlaying ? 'Playing' : currentSong ? 'Paused' : 'Ready'}
+            </span>
+            {myInfo && (
+              <span className={`role-badge ${myInfo.role}`} style={{ marginLeft: '8px' }}>
+                {myInfo.role}
+              </span>
+            )}
+          </div>
+
+          <button
+            className="walkman-btn"
+            onClick={onAddSource}
+            style={{ padding: '6px 12px', fontSize: '13px' }}
+          >
+            📀 Add Song
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

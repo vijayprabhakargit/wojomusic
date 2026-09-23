@@ -1,0 +1,138 @@
+/* Walkman Room - Retro Cassette Theme */
+:root {
+  --cassette-body: #2a2a2a;
+  --cassette-accent: #c0a060;
+  --cassette-button: #4a4a4a;
+  --cassette-display: #1a1a1a;
+  --reel-primary: #8B7355;
+  --reel-secondary: #6B5B45;
+  --text-primary: #e0d5c0;
+  --text-secondary: #a09080;
+  --bg-dark: #1a1a1a;
+  --bg-medium: #2a2a2a;
+  --bg-light: #3a3a3a;
+  --accent: #c0a060;
+  --accent-hover: #d4b87a;
+  --danger: #c0392b;
+  --success: #27ae60;
+  --info: #2980b9;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Share Tech Mono', monospace;
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #0f0f0f 100%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); }
+
+/* Cassette Frame */
+.cassette-frame {
+  background: linear-gradient(145deg, #333, #222);
+  border: 2px solid var(--cassette-accent);
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(192, 160, 96, 0.1), inset 0 2px 4px rgba(255,255,255,0.05), inset 0 -2px 4px rgba(0,0,0,0.3);
+}
+
+/* Tape Reel Animation */
+.reel {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: 3px solid var(--reel-primary);
+  background: radial-gradient(circle, var(--reel-secondary) 30%, var(--reel-primary) 70%);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reel.spinning { animation: spin 2s linear infinite; }
+.reel-inner {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--cassette-accent);
+  border: 2px solid var(--reel-primary);
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Walkman Buttons */
+.walkman-btn {
+  background: linear-gradient(145deg, #555, #333);
+  border: 1px solid #666;
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.walkman-btn:hover { background: linear-gradient(145deg, #666, #444); border-color: var(--accent); }
+.walkman-btn:active { transform: scale(0.95); }
+.walkman-btn.primary { background: linear-gradient(145deg, var(--accent), #a08840); border-color: var(--accent); color: #1a1a1a; font-weight: bold; }
+.walkman-btn.primary:hover { background: linear-gradient(145deg, var(--accent-hover), var(--accent)); }
+.walkman-btn.danger { border-color: var(--danger); color: var(--danger); }
+.walkman-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Inputs */
+.walkman-input {
+  background: var(--bg-dark);
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+.walkman-input:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(192, 160, 96, 0.3); }
+.walkman-input::placeholder { color: var(--text-secondary); }
+
+/* Role badges */
+.role-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+.role-badge.admin { background: #c0a060; color: #1a1a1a; }
+.role-badge.moderator { background: #2980b9; color: white; }
+.role-badge.listener { background: #555; color: #ccc; }
+
+/* Progress bar */
+.progress-bar { width: 100%; height: 4px; background: #444; border-radius: 2px; cursor: pointer; position: relative; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #e0c080); border-radius: 2px; transition: width 0.1s; position: relative; }
+.progress-bar-fill::after { content: ''; position: absolute; right: -4px; top: -3px; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; opacity: 0; transition: opacity 0.2s; }
+.progress-bar:hover .progress-bar-fill::after { opacity: 1; }
+
+/* Chat message animation */
+.chat-message { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Glass panel */
+.glass-panel { background: rgba(42, 42, 42, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(192, 160, 96, 0.2); border-radius: 8px; }
+
+/* Visualizer bars */
+.visualizer { display: flex; align-items: flex-end; gap: 2px; height: 30px; }
+.visualizer-bar { width: 3px; background: var(--accent); border-radius: 1px 1px 0 0; animation: visualize 0.5s ease infinite alternate; }
+.visualizer-bar:nth-child(1) { animation-delay: 0s; height: 60%; }
+.visualizer-bar:nth-child(2) { animation-delay: 0.1s; height: 40%; }
+.visualizer-bar:nth-child(3) { animation-delay: 0.2s; height: 80%; }
+.visualizer-bar:nth-child(4) { animation-delay: 0.3s; height: 30%; }
+.visualizer-bar:nth-child(5) { animation-delay: 0.4s; height: 70%; }
+.visualizer-bar:nth-child(6) { animation-delay: 0.5s; height: 50%; }
+.visualizer-bar:nth-child(7) { animation-delay: 0.15s; height: 90%; }
+.visualizer-bar:nth-child(8) { animation-delay: 0.25s; height: 45%; }
+.visualizer-bar:nth-child(9) { animation-delay: 0.35s; height: 75%; }
+.visualizer-bar:nth-child(10) { animation-delay: 0.05s; height: 55%; }
+@keyframes visualize { from { opacity: 0.5; height: 20%; } to { opacity: 1; height: var(--height, 80%); } }
+
