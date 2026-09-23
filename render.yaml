@@ -1,0 +1,20 @@
+# Music Room - Render Deployment Configuration
+# Ref: https://render.com/docs/deploy-node-express-app
+
+services:
+  - type: web
+    name: music-room
+    runtime: node
+    plan: free
+    buildCommand: |
+      cd client && npm install && npm run build && cd ../server && npm install
+    startCommand: cd server && node index.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: CLIENT_URL
+        value: https://music-room.onrender.com
+      - key: PORT
+        value: "10000"
+    # Render will set PORT to 10000 automatically; this is just a fallback
