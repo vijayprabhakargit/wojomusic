@@ -1,3 +1,6 @@
+# Music Room - Render Deployment Configuration
+
+services:
   - type: web
     name: music-room
     runtime: node
