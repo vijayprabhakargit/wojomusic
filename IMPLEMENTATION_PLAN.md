@@ -128,3 +128,39 @@ catch block throws again → Socket.IO handler degrades → subsequent operation
   user-visible branding changes. (Can be renamed later if desired.)
 - npm package names cannot contain spaces, so `wojo-music` is used there while the
   displayed brand is "Wojo Music".
+
+---
+
+## Goal 6 — Mobile layout fixes + desktop UX polish
+
+**Problem 1 (Mobile scrolling):** On mobile the root uses `height: auto` and
+`overflow: visible`, so the page grows vertically instead of being a fixed
+viewport height with internal scrolling in the panels. Desktop was fixed in
+Goal 1 but mobile was left out.
+
+**Problem 2 (Verify mobile/desktop):** Need to confirm every feature works
+seamlessly on both mobile and desktop viewports.
+
+**Problem 3 (Panel buttons on desktop):** The Queue/Chat/People tab buttons are
+shown on desktop even though all panels are always visible there — they serve no
+purpose and confuse users. On mobile they're essential for panel switching.
+
+### Steps
+
+- [x] **6.1** Fix mobile root container — use `height: 100dvh` and
+  `overflow: hidden` (same as desktop) so the page doesn't grow vertically.
+- [x] **6.2** Give the right column `flex: 1` on mobile so the active panel
+  fills remaining viewport height instead of using hardcoded `minHeight`.
+- [x] **6.3** Hide the Queue/Chat/People tab buttons on desktop (wrap in
+  `{isMobile && (...)}`).
+- [x] **6.4** Verify all features work on both mobile and desktop:
+    - Create/join room (Landing page responsive styles)
+    - Play/Pause/Next/Prev controls
+    - Progress bar & seek
+    - Upload files and show progress
+    - Queue: add, remove, drag-reorder, click-to-play
+    - Chat: send messages, auto-scroll, system messages
+    - Participants list
+    - Source selector modal (overlay on both viewports)
+- [x] **6.5** Build and verify.
+

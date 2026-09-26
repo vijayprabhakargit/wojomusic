@@ -209,16 +209,15 @@ export default function Room({ socket, onLeave }) {
   };
 
     return (
-    <div style={{
-      minHeight: '100vh',
-      height: isMobile ? 'auto' : '100vh',
-      overflow: isMobile ? 'visible' : 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '10px',
-      maxWidth: '1400px',
-      margin: '0 auto',
-    }}>
+        <div style={{
+          height: isMobile ? '100dvh' : '100vh',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '10px',
+          maxWidth: '1400px',
+          margin: '0 auto',
+        }}>
       {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
@@ -323,11 +322,12 @@ export default function Room({ socket, onLeave }) {
           )}
 
           {/* Mobile Panel Switcher */}
-          <div style={{
-            display: 'flex',
-            gap: '6px',
-            marginTop: '4px',
-          }}>
+                    {isMobile && (
+                    <div style={{
+                      display: 'flex',
+                      gap: '6px',
+                      marginTop: '4px',
+                    }}>
             {[
               { id: 'queue', label: '📋 Queue', count: queue?.length },
               { id: 'chat', label: '💬 Chat' },
@@ -361,25 +361,26 @@ export default function Room({ socket, onLeave }) {
               </button>
             ))}
           </div>
-        </div>
+                    )}
+                  </div>
 
-        {/* Right Column - Panels (Desktop) */}
-                <div style={{
-          flex: '1 1 40%',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          minWidth: '300px',
-          minHeight: 0,
-        }}>
-          {/* Queue Panel */}
-          <div className="glass-panel" style={{
-            flex: '1 1 50%',
-            display: isMobile ? (activePanel === 'queue' ? 'flex' : 'none') : 'flex',
-            flexDirection: 'column',
-            minHeight: isMobile ? '200px' : 0,
-                        overflow: 'hidden',
-                      }}>
+                  {/* Right Column - Panels (Desktop) */}
+                        <div style={{
+                  flex: isMobile ? 1 : '1 1 40%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  minWidth: isMobile ? 0 : '300px',
+                  minHeight: 0,
+                }}>
+                  {/* Queue Panel */}
+                  <div className="glass-panel" style={{
+                    flex: isMobile ? 1 : '1 1 50%',
+                    display: isMobile ? (activePanel === 'queue' ? 'flex' : 'none') : 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                                overflow: 'hidden',
+                              }}>
                         <QueuePanel
                                       queue={queue}
                                       currentIndex={playerState?.currentIndex}
@@ -393,13 +394,13 @@ export default function Room({ socket, onLeave }) {
           </div>
 
           {/* Chat + Participants */}
-          <div className="glass-panel" style={{
-            flex: '1 1 50%',
-            display: isMobile ? (activePanel === 'chat' || activePanel === 'participants' ? 'flex' : 'none') : 'flex',
-            flexDirection: 'column',
-            minHeight: isMobile ? '250px' : 0,
-                        overflow: 'hidden',
-                      }}>
+                    <div className="glass-panel" style={{
+                      flex: isMobile ? 1 : '1 1 50%',
+                      display: isMobile ? (activePanel === 'chat' || activePanel === 'participants' ? 'flex' : 'none') : 'flex',
+                      flexDirection: 'column',
+                      minHeight: 0,
+                                  overflow: 'hidden',
+                                }}>
                         {activePanel === 'participants' && isMobile ? (
               <Participants
                 participants={participants}
