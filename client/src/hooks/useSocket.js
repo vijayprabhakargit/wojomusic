@@ -121,12 +121,16 @@ export function useSocket(roomId = null) {
   }, [roomIdState]);
 
   const removeFromQueue = useCallback((songId) => {
-    socketRef.current.emit('queue:remove', { roomId: roomIdState, songId });
-  }, [roomIdState]);
+      return new Promise((resolve) => {
+        socketRef.current.emit('queue:remove', { roomId: roomIdState, songId }, resolve);
+      });
+    }, [roomIdState]);
 
-  const reorderQueue = useCallback((fromIndex, toIndex) => {
-    socketRef.current.emit('queue:reorder', { roomId: roomIdState, fromIndex, toIndex });
-  }, [roomIdState]);
+    const reorderQueue = useCallback((fromIndex, toIndex) => {
+      return new Promise((resolve) => {
+        socketRef.current.emit('queue:reorder', { roomId: roomIdState, fromIndex, toIndex }, resolve);
+      });
+    }, [roomIdState]);
 
   // Player controls
   const play = useCallback(() => {
@@ -146,8 +150,14 @@ export function useSocket(roomId = null) {
   }, [roomIdState]);
 
   const prevTrack = useCallback(() => {
-    socketRef.current.emit('player:previous', { roomId: roomIdState });
-  }, [roomIdState]);
+      socketRef.current.emit('player:previous', { roomId: roomIdState });
+    }, [roomIdState]);
+
+    const playFromQueue = useCallback((index) => {
+      return new Promise((resolve) => {
+        socketRef.current.emit('player:playSpecific', { roomId: roomIdState, index }, resolve);
+      });
+    }, [roomIdState]);
 
   const reportProgress = useCallback((position) => {
     socketRef.current.emit('player:progress', { roomId: roomIdState, position });
@@ -200,9 +210,10 @@ export function useSocket(roomId = null) {
     seek,
     nextTrack,
     prevTrack,
-    reportProgress,
-    syncPosition,
-    sendMessage,
-    uploadFile
-  };
+        playFromQueue,
+        reportProgress,
+        syncPosition,
+        sendMessage,
+        uploadFile
+      };
 }

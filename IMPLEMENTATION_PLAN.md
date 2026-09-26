@@ -93,6 +93,34 @@ evicted.
 
 ---
 
+## Goal 5 — Queue UX fixes (upload progress, click-to-play, reorder & delete bugs)
+
+**Problem:** Four user-facing issues degrade the queue experience:
+1. Uploading multiple files shows no progress (just "Uploading...").
+2. No way to click a queue item to play it directly.
+3. Drag-to-reorder silently breaks after first use (server `callback` is `undefined`).
+4. Remove song silently breaks after first use (same root cause as #3).
+
+**Root cause of #3 & #4:** Client emits `queue:remove` / `queue:reorder` without
+a callback argument. The server tries to call `callback()` → throws TypeError →
+catch block throws again → Socket.IO handler degrades → subsequent operations fail.
+
+### Steps
+
+- [ ] **5.1** Show upload progress (`2/5`, `3/5`, etc.) in `SourceSelector.jsx`
+  while uploading multiple files.
+- [ ] **5.2** Add `player:playSpecific` event on server to play a specific queue index.
+- [ ] **5.3** Add `playFromQueue(index)` to `useSocket.js`.
+- [ ] **5.4** Pass `onPlayFromQueue` from `Room.jsx` to `QueuePanel.jsx`.
+- [ ] **5.5** Add click handler on queue items in `QueuePanel.jsx` to play via click.
+- [ ] **5.6** Fix `queue:remove` and `queue:reorder` in `server/index.js` —
+  guard `callback()` with `if (callback)` so undefined callbacks don't throw.
+- [ ] **5.7** Add dummy callbacks to `removeFromQueue` / `reorderQueue` in
+  `useSocket.js` for future-proof consistency.
+- [ ] **5.8** Build and verify.
+
+---
+
 ## Notes / Decisions
 
 - Internal CSS class names (`walkman-btn`, `walkman-input`, `--cassette-*`) are

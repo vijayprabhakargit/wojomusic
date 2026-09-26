@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 export default function SourceSelector({ socket, onClose, queue }) {
   const [tab, setTab] = useState('local'); // 'local' | 'gdrive'
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [addingGDrive, setAddingGDrive] = useState(false);
   const [gdriveUrl, setGdriveUrl] = useState('');
   const [error, setError] = useState('');
@@ -18,9 +19,11 @@ export default function SourceSelector({ socket, onClose, queue }) {
     setError('');
     setSuccess('');
     setUploading(true);
+        setUploadProgress({ current: 0, total: files.length });
 
-    // Validate each file
-    for (const file of files) {
+        // Validate each file
+        for (const [fileIndex, file] of files.entries()) {
+          setUploadProgress({ current: fileIndex + 1, total: files.length });
       // Check size
       if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         setError(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Max is ${MAX_SIZE_MB}MB.`);
@@ -265,15 +268,32 @@ export default function SourceSelector({ socket, onClose, queue }) {
             />
 
             {uploading && (
-              <div style={{
-                marginTop: '15px',
-                textAlign: 'center',
-                color: 'var(--text-secondary)',
-                fontSize: '13px',
-              }}>
-                ⏳ Uploading...
-              </div>
-            )}
+                          <div style={{
+                            marginTop: '15px',
+                            textAlign: 'center',
+                            color: 'var(--text-secondary)',
+                            fontSize: '13px',
+                          }}>
+                            <div style={{ marginBottom: '6px' }}>
+                              ⏳ Uploading {uploadProgress.current}/{uploadProgress.total}...
+                            </div>
+                            <div style={{
+                              width: '100%',
+                              height: '4px',
+                              background: 'rgba(192,160,96,0.2)',
+                              borderRadius: '2px',
+                              overflow: 'hidden',
+                            }}>
+                              <div style={{
+                                width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                                height: '100%',
+                                background: 'var(--accent)',
+                                borderRadius: '2px',
+                                transition: 'width 0.3s ease',
+                              }} />
+                            </div>
+                          </div>
+                        )}
           </div>
         ) : (
           <div>

@@ -198,32 +198,34 @@ io.on('connection', (socket) => {
   });
 
   socket.on('queue:remove', ({ roomId, songId }, callback) => {
-    try {
-      const participant = roomManager.getParticipantBySocketId(socket.id);
-      if (!participant || participant.role === 'listener') {
-        return callback({ success: false, error: 'Not authorized' });
+      try {
+        const participant = roomManager.getParticipantBySocketId(socket.id);
+        if (!participant || participant.role === 'listener') {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+        roomManager.removeFromQueue(roomId, songId);
+        io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ success: false, error: err.message });
       }
-      roomManager.removeFromQueue(roomId, songId);
-      io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
-      callback({ success: true });
-    } catch (err) {
-      callback({ success: false, error: err.message });
-    }
-  });
+    });
 
-  socket.on('queue:reorder', ({ roomId, fromIndex, toIndex }, callback) => {
-    try {
-      const participant = roomManager.getParticipantBySocketId(socket.id);
-      if (!participant || participant.role === 'listener') {
-        return callback({ success: false, error: 'Not authorized' });
+    socket.on('queue:reorder', ({ roomId, fromIndex, toIndex }, callback) => {
+      try {
+        const participant = roomManager.getParticipantBySocketId(socket.id);
+        if (!participant || participant.role === 'listener') {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+        roomManager.reorderQueue(roomId, fromIndex, toIndex);
+        io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ success: false, error: err.message });
       }
-      roomManager.reorderQueue(roomId, fromIndex, toIndex);
-      io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
-      callback({ success: true });
-    } catch (err) {
-      callback({ success: false, error: err.message });
-    }
-  });
+    });
 
   // ---- PLAYER CONTROLS ----
 
@@ -284,28 +286,54 @@ io.on('connection', (socket) => {
   });
 
   socket.on('player:previous', ({ roomId }) => {
-    const participant = roomManager.getParticipantBySocketId(socket.id);
-    if (!participant || participant.role === 'listener') return;
+      const participant = roomManager.getParticipantBySocketId(socket.id);
+      if (!participant || participant.role === 'listener') return;
 
-    const room = roomManager.getRoom(roomId);
-    if (!room) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
 
-    // If more than 3 seconds in, restart current song
-    if (room.playerState.position > 3) {
-      roomManager.setPlayerState(roomId, { 
-        position: 0,
-        lastUpdated: Date.now() 
-      });
-      io.to(roomId).emit('player:state', roomManager.getPlayerState(roomId));
-      return;
-    }
+      // If more than 3 seconds in, restart current song
+      if (room.playerState.position > 3) {
+        roomManager.setPlayerState(roomId, { 
+          position: 0,
+          lastUpdated: Date.now() 
+        });
+        io.to(roomId).emit('player:state', roomManager.getPlayerState(roomId));
+        return;
+      }
 
-    // Otherwise go to previous song
-    const prevIndex = room.playerState.currentIndex - 1;
-    if (prevIndex >= 0) {
-      playSong(roomId, prevIndex);
-    }
-  });
+      // Otherwise go to previous song
+      const prevIndex = room.playerState.currentIndex - 1;
+      if (prevIndex >= 0) {
+        playSong(roomId, prevIndex);
+      }
+    });
+
+    socket.on('player:playSpecific', ({ roomId, index }, callback) => {
+      try {
+        const participant = roomManager.getParticipantBySocketId(socket.id);
+        if (!participant || participant.role === 'listener') {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+
+        const room = roomManager.getRoom(roomId);
+        if (!room) {
+          if (callback) callback({ success: false, error: 'Room not found' });
+          return;
+        }
+
+        if (index < 0 || index >= room.queue.length) {
+          if (callback) callback({ success: false, error: 'Invalid index' });
+          return;
+        }
+
+        playSong(roomId, index);
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
 
   socket.on('player:sync', ({ roomId, clientPosition, clientTimestamp }) => {
     // Clients periodically send their position for sync reconciliation

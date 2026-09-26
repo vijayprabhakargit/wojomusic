@@ -6,6 +6,7 @@ export default function QueuePanel({
   myInfo,
   onRemove,
   onReorder,
+  onPlayFromQueue,
   canControl,
   formatTime
 }) {
@@ -106,29 +107,36 @@ export default function QueuePanel({
             const isFailed = song.downloadFailed;
 
             return (
-              <div
-                key={song.id}
-                draggable={canControl && !isPlaying}
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 10px',
-                  marginBottom: '4px',
-                  borderRadius: '6px',
-                  background: isPlaying
-                    ? 'rgba(192,160,96,0.15)'
-                    : dragIndex === index
-                      ? 'rgba(192,160,96,0.3)'
-                      : 'rgba(255,255,255,0.03)',
-                  border: isPlaying ? '1px solid var(--accent)' : '1px solid transparent',
-                  cursor: canControl && !isPlaying ? 'grab' : 'default',
-                  transition: 'all 0.2s',
-                }}
-              >
+                          <div
+                            key={song.id}
+                            draggable={canControl && !isPlaying}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onClick={() => {
+                              if (!isPlaying && canControl) {
+                                onPlayFromQueue(index);
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 10px',
+                              marginBottom: '4px',
+                              borderRadius: '6px',
+                              background: isPlaying
+                                ? 'rgba(192,160,96,0.15)'
+                                : dragIndex === index
+                                  ? 'rgba(192,160,96,0.3)'
+                                  : 'rgba(255,255,255,0.03)',
+                              border: isPlaying ? '1px solid var(--accent)' : '1px solid transparent',
+                              cursor: isPlaying ? 'default' : canControl ? 'pointer' : 'default',
+                              transition: 'all 0.2s',
+                              userSelect: 'none',
+                            }}
+                            title={isPlaying ? 'Now playing' : canControl ? 'Click to play' : song.title}
+                          >
                 {/* Number & playing indicator */}
                 <div style={{
                   minWidth: '24px',

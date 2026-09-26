@@ -381,14 +381,15 @@ export default function Room({ socket, onLeave }) {
                         overflow: 'hidden',
                       }}>
                         <QueuePanel
-              queue={queue}
-              currentIndex={playerState?.currentIndex}
-              myInfo={myInfo}
-              onRemove={(songId) => socket.removeFromQueue(songId)}
-              onReorder={(from, to) => socket.reorderQueue(from, to)}
-              canControl={canControl}
-              formatTime={formatTime}
-            />
+                                      queue={queue}
+                                      currentIndex={playerState?.currentIndex}
+                                      myInfo={myInfo}
+                                      onRemove={(songId) => socket.removeFromQueue(songId)}
+                                      onReorder={(from, to) => socket.reorderQueue(from, to)}
+                                      onPlayFromQueue={(index) => socket.playFromQueue(index)}
+                                      canControl={canControl}
+                                      formatTime={formatTime}
+                                    />
           </div>
 
           {/* Chat + Participants */}
