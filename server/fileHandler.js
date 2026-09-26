@@ -3,58 +3,150 @@ const path = require('path');
 const axios = require('axios');
 
 // ============================================================
-// YouTube InnerTube API — IOS client works without bot detection
+// YouTube InnerTube API - Multi-client with visitor data & retry
 // ============================================================
 const API_KEY = 'AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX3';
 const YT_BASE = 'https://www.youtube.com/youtubei/v1/';
 
-const IOS_CLIENT = {
-  clientName: 'IOS',
-  clientVersion: '21.03.1',
-  clientId: '5',
-  userAgent: 'com.google.ios.youtube/21.03.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)',
-  deviceMake: 'Apple',
-  deviceModel: 'iPhone16,2',
-  osName: 'iPhone',
-  osVersion: '18.2.22C152',
+const CLIENTS = {
+  IOS: {
+    clientName: 'IOS',
+    clientVersion: '21.03.1',
+    clientId: '5',
+    userAgent: 'com.google.ios.youtube/21.03.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)',
+    payload: {
+      client: {
+        clientName: 'IOS', clientVersion: '21.03.1',
+        hl: 'en', gl: 'US',
+        deviceMake: 'Apple', deviceModel: 'iPhone16,2',
+        osName: 'iPhone', osVersion: '18.2.22C152',
+      },
+    },
+  },
+  WEB: {
+    clientName: 'WEB',
+    clientVersion: '2.20250101.00.00',
+    clientId: '1',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    payload: {
+      client: {
+        clientName: 'WEB', clientVersion: '2.20250101.00.00',
+        hl: 'en', gl: 'US',
+        osName: 'Windows', osVersion: '10.0',
+        platform: 'DESKTOP',
+      },
+    },
+  },
+  ANDROID: {
+    clientName: 'ANDROID',
+    clientVersion: '19.09.37',
+    clientId: '3',
+    userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip',
+    payload: {
+      client: {
+        clientName: 'ANDROID', clientVersion: '19.09.37',
+        hl: 'en', gl: 'US',
+        osName: 'Android', osVersion: '14',
+        platform: 'MOBILE',
+        androidSdkVersion: '34',
+      },
+    },
+  },
 };
 
-async function innerTubePlayer(videoId) {
-  const payload = {
-    context: {
-      client: {
-        clientName: IOS_CLIENT.clientName,
-        clientVersion: IOS_CLIENT.clientVersion,
-        hl: 'en', gl: 'US',
-        deviceMake: IOS_CLIENT.deviceMake,
-        deviceModel: IOS_CLIENT.deviceModel,
-        osName: IOS_CLIENT.osName,
-        osVersion: IOS_CLIENT.osVersion,
-      },
-    },
-    videoId,
-    playbackContext: {
-      contentPlaybackContext: { signatureTimestamp: 19400 },
-    },
-  };
+// Cache visitor data (re-fetched every 30 min)
+let cachedVisitorData = null;
+let visitorDataExpires = 0;
+const VISITOR_DATA_TTL = 30 * 60 * 1000;
 
-  const resp = await axios.post(
-    `${YT_BASE}player?key=${API_KEY}&prettyPrint=false`,
-    payload,
-    {
+async function fetchVisitorData() {
+  if (cachedVisitorData && Date.now() < visitorDataExpires) {
+    return cachedVisitorData;
+  }
+  try {
+    const resp = await axios.get('https://www.youtube.com', {
       headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Format-Version': '1',
-        'X-YouTube-Client-Name': IOS_CLIENT.clientId,
-        'X-YouTube-Client-Version': IOS_CLIENT.clientVersion,
-        'Origin': 'https://www.youtube.com',
-        'Referer': 'https://www.youtube.com/',
-        'User-Agent': IOS_CLIENT.userAgent,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml',
       },
-      timeout: 15000,
+      timeout: 10000,
+      maxRedirects: 5,
+    });
+    const html = typeof resp.data === 'string' ? resp.data : '';
+    const match = html.match(/"visitorData":"([^"]+)"/);
+    if (match) {
+      cachedVisitorData = match[1];
+      visitorDataExpires = Date.now() + VISITOR_DATA_TTL;
+      return cachedVisitorData;
     }
-  );
-  return resp.data;
+  } catch (e) {
+    // Silently fail - requests can work without visitor data too
+  }
+  return null;
+}
+
+async function innerTubePlayer(videoId, retries = 2) {
+  const clientOrder = ['IOS', 'WEB', 'ANDROID'];
+  let lastError = null;
+
+  for (const clientName of clientOrder) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const client = CLIENTS[clientName];
+        const visitorData = await fetchVisitorData();
+
+        const payload = {
+          context: {
+            ...client.payload,
+            user: { lockedSafetyMode: false },
+            request: { useSsl: true, internalExperimentFlags: [], consistencyTokenJars: [] },
+          },
+          videoId,
+          playbackContext: {
+            contentPlaybackContext: { signatureTimestamp: 19400 },
+          },
+        };
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Format-Version': '1',
+          'X-YouTube-Client-Name': client.clientId,
+          'X-YouTube-Client-Version': client.clientVersion,
+          'Origin': 'https://www.youtube.com',
+          'Referer': 'https://www.youtube.com/',
+          'User-Agent': client.userAgent,
+        };
+        if (visitorData) {
+          headers['X-Goog-Visitor-Id'] = visitorData;
+          payload.context.client.visitorData = visitorData;
+        }
+
+        const resp = await axios.post(
+          YT_BASE + 'player?key=' + API_KEY + '&prettyPrint=false',
+          payload,
+          { headers, timeout: 15000 }
+        );
+
+        const status = resp.data.playabilityStatus?.status;
+        if (status === 'OK') {
+          return resp.data;
+        }
+
+        lastError = new Error(resp.data.playabilityStatus?.reason || 'Unknown error');
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        }
+      } catch (e) {
+        lastError = e;
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error('Could not fetch video info');
 }
 
 function extractVideoMeta(data) {
@@ -95,7 +187,6 @@ function extractBestAudioUrl(data) {
 // Cache YouTube stream URLs (1 hour TTL)
 const streamUrlCache = new Map();
 const STREAM_CACHE_TTL = 60 * 60 * 1000;
-
 class FileHandler {
   constructor(uploadsDir, maxFileSize = 30 * 1024 * 1024) {
     this.uploadsDir = uploadsDir;
