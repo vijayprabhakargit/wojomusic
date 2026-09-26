@@ -164,13 +164,21 @@ io.on('connection', (socket) => {
       if (!room) return callback({ success: false, error: 'Room not found' });
 
       const queueItem = roomManager.addToQueue(roomId, {
-        ...song,
-        addedBy: participant.name,
-        addedById: socket.id
-      });
+              ...song,
+              addedBy: participant.name,
+              addedById: socket.id
+            });
 
-      io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
-      io.to(roomId).emit('chat:system', `${participant.name} added "${song.title || song.fileName}" to queue`);
+            // Evict LRU if queue exceeds max size
+            const evicted = roomManager.evictLRU(roomId);
+
+            io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+
+            if (evicted) {
+              io.to(roomId).emit('chat:system', `Queue limit reached — removed "${evicted.title}" (oldest)`);
+            }
+
+            io.to(roomId).emit('chat:system', `${participant.name} added "${song.title || song.fileName}" to queue`);
 
       // If nothing is playing, start
       if (!room.playerState.currentSong) {
@@ -377,7 +385,10 @@ io.on('connection', (socket) => {
 
     const song = room.queue[index];
 
-    // Check if file is cached, if not, download it
+        // Mark this song as recently played for LRU tracking
+        roomManager.markSongPlayed(roomId, song.id);
+
+        // Check if file is cached, if not, download it
     const processSong = (asReadyBoolean = false) => {
       roomManager.setPlayerState(roomId, {
         currentSong: song,

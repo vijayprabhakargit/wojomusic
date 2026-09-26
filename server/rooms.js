@@ -1,5 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 
+const MAX_QUEUE_SIZE = 20;
+
 class RoomManager {
   constructor() {
     this.rooms = new Map(); // roomId -> { id, participants, queue, playerState, createdAt }
@@ -102,39 +104,79 @@ class RoomManager {
     if (!room) throw new Error('Room not found');
 
     const queueItem = {
-      id: uuidv4(),
-      title: song.title || song.fileName || 'Unknown Track',
-      fileName: song.fileName || '',
-      url: song.url || '',
-      filePath: song.filePath || null,
-      fileType: song.fileType || 'audio/mpeg',
-      duration: song.duration || 0,
-      addedBy: song.addedBy || 'Unknown',
-      addedById: song.addedById || '',
-      addedAt: Date.now(),
-      source: song.source || 'local' // 'local' | 'gdrive' | 'url'
-    };
+          id: uuidv4(),
+          title: song.title || song.fileName || 'Unknown Track',
+          fileName: song.fileName || '',
+          url: song.url || '',
+          filePath: song.filePath || null,
+          fileType: song.fileType || 'audio/mpeg',
+          duration: song.duration || 0,
+          addedBy: song.addedBy || 'Unknown',
+          addedById: song.addedById || '',
+          addedAt: Date.now(),
+          source: song.source || 'local', // 'local' | 'gdrive' | 'url'
+          lastPlayedAt: null // tracks recency for LRU eviction
+        };
 
     room.queue.push(queueItem);
     return queueItem;
   }
 
   removeFromQueue(roomId, songId) {
-    const room = this.rooms.get(roomId);
-    if (!room) return false;
+      const room = this.rooms.get(roomId);
+      if (!room) return false;
 
-    const index = room.queue.findIndex(s => s.id === songId);
-    if (index === -1) return false;
+      const index = room.queue.findIndex(s => s.id === songId);
+      if (index === -1) return false;
 
-    room.queue.splice(index, 1);
+      room.queue.splice(index, 1);
 
-    // Adjust current index if needed
-    if (room.playerState.currentIndex >= index) {
-      room.playerState.currentIndex = Math.max(-1, room.playerState.currentIndex - 1);
+      // Adjust current index if needed
+      if (room.playerState.currentIndex >= index) {
+        room.playerState.currentIndex = Math.max(-1, room.playerState.currentIndex - 1);
+      }
+
+      return true;
     }
 
-    return true;
-  }
+    markSongPlayed(roomId, songId) {
+      const room = this.rooms.get(roomId);
+      if (!room) return;
+
+      const song = room.queue.find(s => s.id === songId);
+      if (song) {
+        song.lastPlayedAt = Date.now();
+      }
+    }
+
+    evictLRU(roomId) {
+      const room = this.rooms.get(roomId);
+      if (!room) return null;
+
+      // Only evict if over max size
+      if (room.queue.length <= MAX_QUEUE_SIZE) return null;
+
+      // Find the LRU song - exclude the currently playing song
+      const currentSongId = room.playerState.currentSong?.id;
+      const eligible = room.queue.filter(s => s.id !== currentSongId);
+
+      if (eligible.length === 0) return null;
+
+      // Sort by lastPlayedAt (nulls first = never played), then by addedAt (oldest first)
+      eligible.sort((a, b) => {
+        // Never-played items come first (most eligible for eviction)
+        if (a.lastPlayedAt === null && b.lastPlayedAt !== null) return -1;
+        if (a.lastPlayedAt !== null && b.lastPlayedAt === null) return 1;
+        // Both played or both never played - compare timestamps
+        const aTime = a.lastPlayedAt || a.addedAt;
+        const bTime = b.lastPlayedAt || b.addedAt;
+        return aTime - bTime;
+      });
+
+      const lru = eligible[0];
+      this.removeFromQueue(roomId, lru.id);
+      return lru;
+    }
 
   reorderQueue(roomId, fromIndex, toIndex) {
     const room = this.rooms.get(roomId);

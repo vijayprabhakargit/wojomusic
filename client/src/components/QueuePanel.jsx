@@ -64,7 +64,7 @@ export default function QueuePanel({
             padding: '1px 6px',
             borderRadius: '10px',
           }}>
-            {queue.length}
+            {queue.length}/20
           </span>
         </span>
         {canControl && queue.length > 0 && (

@@ -64,6 +64,35 @@ Replace the logo with a minimalist cat wearing headphones.
 
 ---
 
+## Goal 4 — LRU Queue (max 20 songs)
+
+**Problem:** The queue can grow unbounded, consuming memory and making the UI
+hard to navigate.
+
+**Solution:** Cap the queue at 20 songs using LRU (Least Recently Used) eviction.
+When a song is played, it's marked as recently used. When a new song is added and
+the queue is full, the least recently used song (preferring never-played songs,
+then oldest played) is automatically evicted. The currently playing song is never
+evicted.
+
+### Steps
+
+- [x] **4.1** Add `MAX_QUEUE_SIZE = 20` constant and `lastPlayedAt` field to
+  queue items in `server/rooms.js`.
+- [x] **4.2** Add `markSongPlayed(roomId, songId)` method to `rooms.js` — sets
+  `lastPlayedAt` to `Date.now()` when a song starts playing.
+- [x] **4.3** Add `evictLRU(roomId)` method to `rooms.js` — when queue exceeds
+  max size, finds the least recently used song (excluding current), removes it,
+  and returns it.
+- [x] **4.4** Wire up `playSong()` in `server/index.js` to call
+  `markSongPlayed()` when a song starts, so played songs are preserved.
+- [x] **4.5** Wire up `queue:add` handler in `server/index.js` to call
+  `evictLRU()` after adding, and emit a system chat message when eviction happens.
+- [x] **4.6** Update `QueuePanel.jsx` to show queue count as `X/20`.
+- [x] **4.7** Build and verify.
+
+---
+
 ## Notes / Decisions
 
 - Internal CSS class names (`walkman-btn`, `walkman-input`, `--cassette-*`) are
