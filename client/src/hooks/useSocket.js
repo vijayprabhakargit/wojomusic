@@ -179,18 +179,25 @@ export function useSocket(roomId = null) {
   }, [roomIdState]);
 
   // File upload
-  const uploadFile = useCallback((fileBuffer, fileName, fileType) => {
-    return new Promise((resolve) => {
-      socketRef.current.emit('file:upload', { 
-        roomId: roomIdState, 
-        fileBuffer, 
-        fileName, 
-        fileType 
-      }, resolve);
-    });
-  }, [roomIdState]);
+    const uploadFile = useCallback((fileBuffer, fileName, fileType) => {
+      return new Promise((resolve) => {
+        socketRef.current.emit('file:upload', { 
+          roomId: roomIdState, 
+          fileBuffer, 
+          fileName, 
+          fileType 
+        }, resolve);
+      });
+    }, [roomIdState]);
 
-  return {
+    // YouTube
+    const addYoutube = useCallback((url) => {
+      return new Promise((resolve) => {
+        socketRef.current.emit('youtube:add', { roomId: roomIdState, url }, resolve);
+      });
+    }, [roomIdState]);
+
+    return {
     isConnected,
     socket: socketRef.current,
     roomId: roomIdState,
@@ -214,6 +221,7 @@ export function useSocket(roomId = null) {
         reportProgress,
         syncPosition,
         sendMessage,
-        uploadFile
-      };
+                uploadFile,
+                addYoutube
+              };
 }

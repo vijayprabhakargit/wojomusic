@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const ytdl = require('ytdl-core');
 
 class FileHandler {
   constructor(uploadsDir, maxFileSize = 30 * 1024 * 1024) {
@@ -147,6 +148,72 @@ class FileHandler {
     if (url.startsWith('http')) return url;
 
     throw new Error('Invalid Google Drive URL format');
+  }
+
+  /**
+   * Download audio from a YouTube video using ytdl-core
+   */
+  async downloadFromYoutube(url, roomId, songId) {
+    const roomDir = path.join(this.uploadsDir, roomId);
+    if (!fs.existsSync(roomDir)) fs.mkdirSync(roomDir, { recursive: true });
+
+    const storedName = `${songId}.mp3`;
+    const filePath = path.join(roomDir, storedName);
+    const publicUrl = `/uploads/${roomId}/${storedName}`;
+
+    // If already exists, return it
+    if (fs.existsSync(filePath)) return { filePath, publicUrl };
+
+    return new Promise((resolve, reject) => {
+      const stream = ytdl(url, {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+      });
+
+      const writer = fs.createWriteStream(filePath);
+      let downloadedSize = 0;
+
+      stream.on('error', (err) => {
+        writer.destroy();
+        // Clean up partial file
+        if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); } catch (_) {}
+        }
+        reject(new Error(`YouTube download failed: ${err.message}`));
+      });
+
+      stream.on('data', (chunk) => {
+        downloadedSize += chunk.length;
+        if (downloadedSize > this.maxFileSize) {
+          stream.destroy();
+          writer.destroy();
+          if (fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch (_) {}
+          }
+          reject(new Error(`YouTube audio too large (max ${this.formatBytes(this.maxFileSize)})`));
+        }
+      });
+
+      writer.on('finish', () => resolve({ filePath, publicUrl }));
+      writer.on('error', (err) => {
+        reject(new Error(`File write error: ${err.message}`));
+      });
+
+      stream.pipe(writer);
+    });
+  }
+
+  /**
+   * Fetch YouTube video metadata (title, duration) using ytdl-core
+   */
+  async getYoutubeInfo(url) {
+    const info = await ytdl.getInfo(url);
+    const videoDetails = info.videoDetails;
+    return {
+      title: videoDetails.title,
+      duration: parseInt(videoDetails.lengthSeconds, 10) || 0,
+      thumbnail: videoDetails.thumbnails?.[0]?.url || '',
+    };
   }
 
   _registerFile(roomId, fileRecord) {

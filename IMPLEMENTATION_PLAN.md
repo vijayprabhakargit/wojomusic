@@ -164,3 +164,37 @@ purpose and confuse users. On mobile they're essential for panel switching.
     - Source selector modal (overlay on both viewports)
 - [x] **6.5** Build and verify.
 
+---
+
+## Goal 7 — YouTube link support (paste a link → add to queue)
+
+**Problem:** Users can only add music from local file uploads or Google Drive.
+There's no way to paste a YouTube link and have the audio automatically added
+to the queue.
+
+**Solution:** Add a third "YouTube" tab in the SourceSelector modal. When a
+YouTube URL is pasted, the server fetches video info (title, duration) using
+`ytdl-core` and adds it to the queue with `source: 'youtube'`. When the song
+reaches the top of the queue, the server downloads just the audio stream via
+`ytdl-core`, caches it as an MP3 on disk, and streams it to all clients
+(following the same deferred-download pattern as Google Drive).
+
+### Steps
+
+- [x] **7.1** Add `downloadFromYoutube(url, roomId, songId)` method to
+  `server/fileHandler.js` — uses `ytdl-core` to download audio-only stream,
+  saves to disk, returns `{ filePath, publicUrl }`.
+- [x] **7.2** Add `getYoutubeInfo(url)` method to `server/fileHandler.js` —
+  uses `ytdl.getInfo(url)` to extract video title and duration.
+- [x] **7.3** Add `youtube:add` socket event in `server/index.js` — receives
+  YouTube URL, fetches video info, adds to queue with `source: 'youtube'`.
+- [x] **7.4** Handle `source: 'youtube'` in `playSong()` in `server/index.js` —
+  calls `downloadFromYoutube` when the song is about to play (same pattern as GDrive).
+- [x] **7.5** Handle `source: 'youtube'` in `preFetchSong()` in `server/index.js` —
+  pre-fetches the next YouTube song if it's coming next.
+- [x] **7.6** Add YouTube tab to `client/src/components/SourceSelector.jsx` —
+  text input for YouTube URL, "Add to Queue" button.
+- [x] **7.7** Build and verify.
+
+
+

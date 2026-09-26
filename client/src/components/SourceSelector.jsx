@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 
 export default function SourceSelector({ socket, onClose, queue }) {
-  const [tab, setTab] = useState('local'); // 'local' | 'gdrive'
+  const [tab, setTab] = useState('local'); // 'local' | 'gdrive' | 'youtube'
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [addingGDrive, setAddingGDrive] = useState(false);
   const [gdriveUrl, setGdriveUrl] = useState('');
+  const [addingYoutube, setAddingYoutube] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const fileInputRef = useRef(null);
@@ -134,9 +136,35 @@ export default function SourceSelector({ socket, onClose, queue }) {
     } catch (err) {
       setError(`Error: ${err.message}`);
     } finally {
-      setAddingGDrive(false);
-    }
-  };
+          setAddingGDrive(false);
+        }
+      };
+
+      const handleYoutubeAdd = async () => {
+        if (!youtubeUrl.trim()) {
+          setError('Please paste a YouTube link');
+          return;
+        }
+
+        setError('');
+        setSuccess('');
+        setAddingYoutube(true);
+
+        try {
+          const result = await socket.addYoutube(youtubeUrl.trim());
+
+          if (result.success) {
+            setSuccess(`"${result.queueItem.title}" added to queue!`);
+            setYoutubeUrl('');
+          } else {
+            setError(result.error || 'Failed to add YouTube song');
+          }
+        } catch (err) {
+          setError(`Error: ${err.message}`);
+        } finally {
+          setAddingYoutube(false);
+        }
+      };
 
   return (
     <div style={{
@@ -210,137 +238,192 @@ export default function SourceSelector({ socket, onClose, queue }) {
             📂 From My Device
           </button>
           <button
-            className={`walkman-btn ${tab === 'gdrive' ? 'primary' : ''}`}
-            style={{ flex: 1, fontSize: '13px' }}
-            onClick={() => { setTab('gdrive'); setError(''); setSuccess(''); }}
-          >
-            🌐 Google Drive
-          </button>
+                      className={`walkman-btn ${tab === 'gdrive' ? 'primary' : ''}`}
+                      style={{ flex: 1, fontSize: '13px' }}
+                      onClick={() => { setTab('gdrive'); setError(''); setSuccess(''); }}
+                    >
+                      🌐 Google Drive
+                    </button>
+                    <button
+                      className={`walkman-btn ${tab === 'youtube' ? 'primary' : ''}`}
+                      style={{ flex: 1, fontSize: '13px' }}
+                      onClick={() => { setTab('youtube'); setError(''); setSuccess(''); }}
+                    >
+                      🎬 YouTube
+                    </button>
         </div>
 
         {tab === 'local' ? (
-          <div>
-            <p style={{
-              fontSize: '13px',
-              color: 'var(--text-secondary)',
-              marginBottom: '15px',
-            }}>
-              Select audio files from your device to share with the room. Files are uploaded to the server and streamed to everyone.
-            </p>
+                  <div>
+                    <p style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '15px',
+                    }}>
+                      Select audio files from your device to share with the room. Files are uploaded to the server and streamed to everyone.
+                    </p>
 
-            {/* Drag & drop area */}
-            <div
-              style={{
-                border: '2px dashed #555',
-                borderRadius: '8px',
-                padding: '30px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-              }}
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
-              onDragLeave={(e) => { e.currentTarget.style.borderColor = '#555'; }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.style.borderColor = '#555';
-                if (e.dataTransfer.files.length > 0) {
-                  handleFileSelect({ target: { files: e.dataTransfer.files } });
-                }
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div style={{ fontSize: '36px', marginBottom: '10px' }}>🎵</div>
-              <div style={{ fontSize: '14px', color: 'var(--accent)', marginBottom: '5px' }}>
-                Drop files here or click to browse
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Max {MAX_SIZE_MB}MB per file · MP3, WAV, OGG, FLAC, AAC, M4A
-              </div>
-            </div>
+                    {/* Drag & drop area */}
+                    <div
+                      style={{
+                        border: '2px dashed #555',
+                        borderRadius: '8px',
+                        padding: '30px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s',
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                      onDragLeave={(e) => { e.currentTarget.style.borderColor = '#555'; }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = '#555';
+                        if (e.dataTransfer.files.length > 0) {
+                          handleFileSelect({ target: { files: e.dataTransfer.files } });
+                        }
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div style={{ fontSize: '36px', marginBottom: '10px' }}>🎵</div>
+                      <div style={{ fontSize: '14px', color: 'var(--accent)', marginBottom: '5px' }}>
+                        Drop files here or click to browse
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Max {MAX_SIZE_MB}MB per file · MP3, WAV, OGG, FLAC, AAC, M4A
+                      </div>
+                    </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".mp3,.wav,.ogg,.flac,.aac,.m4a,.webm,audio/*"
-              multiple
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-            />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".mp3,.wav,.ogg,.flac,.aac,.m4a,.webm,audio/*"
+                      multiple
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
+                    />
 
-            {uploading && (
-                          <div style={{
-                            marginTop: '15px',
-                            textAlign: 'center',
-                            color: 'var(--text-secondary)',
-                            fontSize: '13px',
-                          }}>
-                            <div style={{ marginBottom: '6px' }}>
-                              ⏳ Uploading {uploadProgress.current}/{uploadProgress.total}...
-                            </div>
-                            <div style={{
-                              width: '100%',
-                              height: '4px',
-                              background: 'rgba(192,160,96,0.2)',
-                              borderRadius: '2px',
-                              overflow: 'hidden',
-                            }}>
-                              <div style={{
-                                width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
-                                height: '100%',
-                                background: 'var(--accent)',
-                                borderRadius: '2px',
-                                transition: 'width 0.3s ease',
-                              }} />
-                            </div>
-                          </div>
-                        )}
-          </div>
-        ) : (
-          <div>
-            <p style={{
-              fontSize: '13px',
-              color: 'var(--text-secondary)',
-              marginBottom: '15px',
-            }}>
-              Paste a public Google Drive file link. The song will be downloaded to the server when it's next in the queue.
-            </p>
+                    {uploading && (
+                                  <div style={{
+                                    marginTop: '15px',
+                                    textAlign: 'center',
+                                    color: 'var(--text-secondary)',
+                                    fontSize: '13px',
+                                  }}>
+                                    <div style={{ marginBottom: '6px' }}>
+                                      ⏳ Uploading {uploadProgress.current}/{uploadProgress.total}...
+                                    </div>
+                                    <div style={{
+                                      width: '100%',
+                                      height: '4px',
+                                      background: 'rgba(192,160,96,0.2)',
+                                      borderRadius: '2px',
+                                      overflow: 'hidden',
+                                    }}>
+                                      <div style={{
+                                        width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                                        height: '100%',
+                                        background: 'var(--accent)',
+                                        borderRadius: '2px',
+                                        transition: 'width 0.3s ease',
+                                      }} />
+                                    </div>
+                                  </div>
+                                )}
+                  </div>
+                ) : tab === 'gdrive' ? (
+                  <div>
+                    <p style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '15px',
+                    }}>
+                      Paste a public Google Drive file link. The song will be downloaded to the server when it's next in the queue.
+                    </p>
 
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '5px',
-                color: 'var(--text-secondary)',
-                fontSize: '12px',
-              }}>
-                Google Drive Link
-              </label>
-              <input
-                className="walkman-input"
-                placeholder="https://drive.google.com/file/d/..."
-                value={gdriveUrl}
-                onChange={(e) => setGdriveUrl(e.target.value)}
-              />
-            </div>
+                    <div style={{ marginBottom: '10px' }}>
+                      <label style={{
+                        display: 'block',
+                        marginBottom: '5px',
+                        color: 'var(--text-secondary)',
+                        fontSize: '12px',
+                      }}>
+                        Google Drive Link
+                      </label>
+                      <input
+                        className="walkman-input"
+                        placeholder="https://drive.google.com/file/d/..."
+                        value={gdriveUrl}
+                        onChange={(e) => setGdriveUrl(e.target.value)}
+                      />
+                    </div>
 
-            <p style={{
-              fontSize: '11px',
-              color: 'var(--text-secondary)',
-              marginBottom: '15px',
-              fontStyle: 'italic',
-            }}>
-              💡 Tip: Make sure the file is shared as "Anyone with the link" and it's an audio file.
-            </p>
+                    <p style={{
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '15px',
+                      fontStyle: 'italic',
+                    }}>
+                      💡 Tip: Make sure the file is shared as "Anyone with the link" and it's an audio file.
+                    </p>
 
-            <button
-              className="walkman-btn primary"
-              style={{ width: '100%', padding: '12px' }}
-              onClick={handleGDriveAdd}
-              disabled={addingGDrive || !gdriveUrl.trim()}
-            >
-              {addingGDrive ? 'Adding...' : '➕ Add to Queue'}
-            </button>
-          </div>
-        )}
+                    <button
+                      className="walkman-btn primary"
+                      style={{ width: '100%', padding: '12px' }}
+                      onClick={handleGDriveAdd}
+                      disabled={addingGDrive || !gdriveUrl.trim()}
+                    >
+                      {addingGDrive ? 'Adding...' : '➕ Add to Queue'}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '15px',
+                    }}>
+                      Paste a YouTube video link. The audio will be extracted and added to the queue. It will download when it reaches the top of the queue.
+                    </p>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <label style={{
+                        display: 'block',
+                        marginBottom: '5px',
+                        color: 'var(--text-secondary)',
+                        fontSize: '12px',
+                      }}>
+                        YouTube Link
+                      </label>
+                      <input
+                        className="walkman-input"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleYoutubeAdd();
+                        }}
+                      />
+                    </div>
+
+                    <p style={{
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '15px',
+                      fontStyle: 'italic',
+                    }}>
+                      🎬 Works with YouTube video links and Shorts. The song title will be automatically fetched.
+                    </p>
+
+                    <button
+                      className="walkman-btn primary"
+                      style={{ width: '100%', padding: '12px' }}
+                      onClick={handleYoutubeAdd}
+                      disabled={addingYoutube || !youtubeUrl.trim()}
+                    >
+                      {addingYoutube ? 'Fetching info...' : '▶️ Add to Queue'}
+                    </button>
+                  </div>
+                )}
 
         {/* Status messages */}
         {error && (

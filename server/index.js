@@ -153,6 +153,70 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ---- YOUTUBE ADD ----
+
+  socket.on('youtube:add', ({ roomId, url }, callback) => {
+    try {
+      const participant = roomManager.getParticipantBySocketId(socket.id);
+      if (!participant) return callback({ success: false, error: 'Not in a room' });
+
+      const room = roomManager.getRoom(roomId);
+      if (!room) return callback({ success: false, error: 'Room not found' });
+
+      // Validate YouTube URL
+      const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i;
+      if (!youtubeRegex.test(url.trim())) {
+        return callback({ success: false, error: 'Invalid YouTube URL. Example: https://www.youtube.com/watch?v=...' });
+      }
+
+      // Fetch video info from YouTube
+      fileHandler.getYoutubeInfo(url.trim())
+        .then((info) => {
+          // Create a title from video title (truncate long titles)
+          const title = info.title.length > 100 ? info.title.slice(0, 97) + '...' : info.title;
+
+          const queueItem = roomManager.addToQueue(roomId, {
+            title,
+            url: url.trim(),
+            source: 'youtube',
+            duration: info.duration,
+            addedBy: participant.name,
+            addedById: socket.id,
+          });
+
+          // Evict LRU if queue exceeds max size
+          const evicted = roomManager.evictLRU(roomId);
+
+          io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+
+          if (evicted) {
+            io.to(roomId).emit('chat:system', `Queue limit reached — removed "${evicted.title}" (oldest)`);
+          }
+
+          io.to(roomId).emit('chat:system', `${participant.name} added "${title}" to queue`);
+
+          // If nothing is playing, start
+          if (!room.playerState.currentSong) {
+            playNext(roomId);
+          } else {
+            // If the added song is next in queue, pre-fetch it
+            const nextIndex = room.playerState.currentIndex + 1;
+            if (nextIndex < room.queue.length && room.queue[nextIndex].id === queueItem.id) {
+              preFetchSong(roomId, queueItem);
+            }
+          }
+
+          callback({ success: true, queueItem });
+        })
+        .catch((err) => {
+          console.error(`YouTube info fetch failed: ${err.message}`);
+          callback({ success: false, error: `Could not fetch video info: ${err.message}` });
+        });
+    } catch (err) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // ---- QUEUE MANAGEMENT ----
 
   socket.on('queue:add', ({ roomId, song }, callback) => {
@@ -461,19 +525,33 @@ io.on('connection', (socket) => {
       song.streamUrl = song.publicUrl || `/uploads/${roomId}/${song.id}.mp3`;
       processSong();
     } else if (song.url && song.url.includes('drive.google.com')) {
-      // Download from Google Drive
-      fileHandler.downloadFromGDrive(song.url, roomId, song.id)
-        .then(({ filePath, publicUrl }) => {
-          song.filePath = filePath;
-          song.publicUrl = publicUrl;
-          song.streamUrl = publicUrl;
-          processSong();
-        })
-        .catch(err => {
-          console.error(`Failed to download GDrive file: ${err.message}`);
-          io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from Google Drive`);
-          playNext(roomId);
-        });
+          // Download from Google Drive
+          fileHandler.downloadFromGDrive(song.url, roomId, song.id)
+            .then(({ filePath, publicUrl }) => {
+              song.filePath = filePath;
+              song.publicUrl = publicUrl;
+              song.streamUrl = publicUrl;
+              processSong();
+            })
+            .catch(err => {
+              console.error(`Failed to download GDrive file: ${err.message}`);
+              io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from Google Drive`);
+              playNext(roomId);
+            });
+        } else if (song.source === 'youtube' && song.url) {
+          // Download audio from YouTube
+          fileHandler.downloadFromYoutube(song.url, roomId, song.id)
+            .then(({ filePath, publicUrl }) => {
+              song.filePath = filePath;
+              song.publicUrl = publicUrl;
+              song.streamUrl = publicUrl;
+              processSong();
+            })
+            .catch(err => {
+              console.error(`Failed to download YouTube audio: ${err.message}`);
+              io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from YouTube`);
+              playNext(roomId);
+            });
     } else if (song.filePath) {
       song.streamUrl = song.publicUrl || `/uploads/${roomId}/${song.id}.mp3`;
       // Try to use it directly
@@ -492,19 +570,31 @@ io.on('connection', (socket) => {
     if (song.filePath && fs.existsSync(song.filePath)) return;
 
     if (song.url && song.url.includes('drive.google.com')) {
-      fileHandler.downloadFromGDrive(song.url, roomId, song.id)
-        .then(({ filePath, publicUrl }) => {
-          song.filePath = filePath;
-          song.publicUrl = publicUrl;
-          song.streamUrl = publicUrl;
-          console.log(`[~] Pre-fetched: ${song.title}`);
-          // Notify clients the song is now ready
-          io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
-        })
-        .catch(err => {
-          console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
-        });
-    }
+          fileHandler.downloadFromGDrive(song.url, roomId, song.id)
+            .then(({ filePath, publicUrl }) => {
+              song.filePath = filePath;
+              song.publicUrl = publicUrl;
+              song.streamUrl = publicUrl;
+              console.log(`[~] Pre-fetched: ${song.title}`);
+              // Notify clients the song is now ready
+              io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+            })
+            .catch(err => {
+              console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
+            });
+        } else if (song.source === 'youtube' && song.url) {
+          fileHandler.downloadFromYoutube(song.url, roomId, song.id)
+            .then(({ filePath, publicUrl }) => {
+              song.filePath = filePath;
+              song.publicUrl = publicUrl;
+              song.streamUrl = publicUrl;
+              console.log(`[~] Pre-fetched YouTube: ${song.title}`);
+              io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+            })
+            .catch(err => {
+              console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
+            });
+        }
   }
 
   // ---- ERROR HANDLING ----
