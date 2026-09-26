@@ -173,12 +173,80 @@ services:
 - Uploaded files are deleted with the room
 - No database involved - fully in-memory
 
-## 🔮 Future Enhancements
+## 🔮 Future Roadmap
 
-- [ ] YouTube/SoundCloud link support
-- [ ] Playlist import (M3U, Spotify, etc.)
-- [ ] Volume control per participant
-- [ ] Song duration display in queue
-- [ ] Admin password protection for rooms
-- [ ] Room history / now playing screen
-- [ ] Audio transcoding for compatibility
+A bold vision to evolve Wojo Music into a cross-platform, multi-source music sync ecosystem.
+
+### 🎬 Ad-Free YouTube Streamer
+
+Integrate youtube-dl / yt-dlp (or the YouTube Data API with a server-side proxy) to allow:
+- Searching and playing YouTube videos without ads or third-party embeds
+- Extracting audio streams directly via the server
+- **Unlimited queue** for YouTube sources (no 20-song LRU cap — that applies only to local uploads to conserve server storage)
+- Playlist support — drop a YouTube playlist URL and let it queue up
+- Voteskipping: room participants can vote to skip the current song (majority wins)
+
+### 🎧 Spotify & Amazon Music Integration
+
+**Spotify:**
+- Use the [Spotify Web API](https://developer.spotify.com/documentation/web-api/) to:
+  - Log in with Spotify OAuth to access library, playlists, and recommendations
+  - Search tracks, albums, and artists directly from Wojo
+  - Pull playlist metadata and queue songs up for the room
+  - Future: actual audio streaming via Spotify Connect SDK for premium users
+
+**Amazon Music / Playlist Import:**
+- Generic playlist file import: upload .m3u, .m3u8, .pls — extract song metadata and queue them
+- Support pasting raw playlist URLs from various services
+- Future: Apple Music via MusicKit JS
+
+### 📱 Android Native Client
+
+Build a native Android app (Kotlin + Jetpack Compose) that shares the same server, so:
+- Desktop users (via browser) and mobile users (via native app) can **jam together in the same room**
+- The Android client uses the same Socket.IO protocol — events, rooms, queue, chat all shared seamlessly
+- Native features: audio focus handling, background playback, lock-screen controls, notification player
+- Phone-as-controller: use the Android app as a remote for a desktop-connected speaker setup
+- **Tech stack:** Kotlin + Jetpack Compose for UI, Socket.IO Java client for real-time, ExoPlayer for audio
+
+**Architecture vision:**
+
+```
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│   Web Client  │      │    Server     │      │ Android App │
+│  (React/Vite) │◄────►│  (Node.js +   │◄────►│ (Kotlin +   │
+│               │      │   Socket.IO)  │      │  Compose)   │
+└──────────────┘      └──────────────┘      └──────────────┘
+                             │
+                     ┌───────├───────┐
+                     │  Third-Party  │
+                     │    Sources    │
+                     │ (YouTube,     │
+                     │  Spotify, etc)│
+                     └─────────────┘
+```
+
+### 🎨 Classic iPod UI Revamp
+
+Reimagine the interface with a **click-wheel inspired layout** while keeping the retro cassette aesthetic:
+- **Click-wheel navigation**: circular menu for switching between Now Playing, Queue, Chat, Sources, Settings
+- **Monochrome-ish palette**: keep the warm amber/gold accents but add crisp white-on-dark LCD-style text
+- **Smooth scroll wheel interaction**: on desktop via mouse drag/scroll, on mobile via touch rotation
+- **Visual polish**: LCD-style font treatment, subtle scanline overlay, glowing backlight effect on the “screen”
+- The cassette tape reels remain as a Now Playing visualizer — best of both worlds
+
+### 🎉 Fun Social Features (Spotify Jam + Community)
+
+- **👥 Spotify Jam-style co-listening**: any room participant can add songs to the shared queue (configurable per room)
+- **📊 Listening stats**: per-session stats showing who added the most songs, most-played genres, total listening time
+- **🎤 Song requests & dedications**: chat-integrated features where you can !request Song - Artist or !dedicate Song - Artist @username
+- **🎯 Voting system**: room polls for skipping, replaying, or voting songs to the top of the queue
+- **🎵 Shared Now Playing screen**: a beautiful full-screen view showing album art, lyrics, and participant reactions (emojis float across the screen in real-time)
+- **📋 Collaborative playlists**: save the current room queue as a shared playlist that persists across sessions
+- **🔔 Join/Leave sounds**: optional retro chime when someone joins or leaves the room (like old chat rooms)
+- **🏆 Achievement badges**: First Song, DJ MVP, Night Owl, Crowd Pleaser — earned by activity
+- **🌙 Dark mode toggle**: already dark-themed, but add an even deeper midnight OLED-friendly variant
+
+---
+
+*Got ideas or want to contribute? Open an issue or PR on [GitHub](https://github.com/vijayprabhakargit/wojomusic).*
