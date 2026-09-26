@@ -65,7 +65,12 @@ export default function QueuePanel({
             padding: '1px 6px',
             borderRadius: '10px',
           }}>
-            {queue.length}/20
+            {(() => {
+              const diskCount = queue.filter(s => s.source === "local" || s.source === "gdrive").length;
+              const ytCount = queue.filter(s => s.source === "youtube").length;
+              const total = queue.length;
+              return diskCount + "/20" + (ytCount > 0 ? " +" + ytCount + " stream" : "");
+            })()}
           </span>
         </span>
         {canControl && queue.length > 0 && (
@@ -172,7 +177,7 @@ export default function QueuePanel({
                     <span>{song.addedBy}</span>
                     <span>·</span>
                     <span style={{ textTransform: 'uppercase', fontSize: '9px' }}>
-                      {song.source === 'gdrive' ? '☁ Drive' : '📂 Local'}
+                      {song.source === 'gdrive' ? '? Drive' : song.source === 'youtube' ? '?? YouTube' : '?? Local'}
                     </span>
                   </div>
                 </div>

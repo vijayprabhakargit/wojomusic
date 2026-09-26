@@ -44,6 +44,9 @@ if (fs.existsSync(clientDist)) {
 const roomManager = new RoomManager();
 const fileHandler = new FileHandler(uploadsDir, 30 * 1024 * 1024); // 30MB max
 
+// YouTube audio streaming proxy
+app.get('/api/youtube-audio/:videoId', fileHandler.createYouTubeProxy());
+
 // ===================== SOCKET.IO HANDLERS =====================
 
 io.on('connection', (socket) => {
@@ -539,19 +542,20 @@ io.on('connection', (socket) => {
               playNext(roomId);
             });
         } else if (song.source === 'youtube' && song.url) {
-          // Download audio from YouTube
-          fileHandler.downloadFromYoutube(song.url, roomId, song.id)
-            .then(({ filePath, publicUrl }) => {
-              song.filePath = filePath;
-              song.publicUrl = publicUrl;
-              song.streamUrl = publicUrl;
-              processSong();
-            })
-            .catch(err => {
-              console.error(`Failed to download YouTube audio: ${err.message}`);
-              io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from YouTube`);
-              playNext(roomId);
-            });
+                  // Get YouTube streaming URL (proxied via our server)
+                  fileHandler.downloadFromYoutube(song.url, roomId, song.id)
+                    .then((result) => {
+                      song.filePath = result.filePath;
+                      song.publicUrl = result.publicUrl;
+                      song.streamUrl = result.publicUrl;
+                      song.isYouTubeStream = true;
+                      processSong();
+                    })
+                    .catch(err => {
+                      console.error(`Failed to load YouTube audio: ${err.message}`);
+                      io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from YouTube`);
+                      playNext(roomId);
+                    });
     } else if (song.filePath) {
       song.streamUrl = song.publicUrl || `/uploads/${roomId}/${song.id}.mp3`;
       // Try to use it directly
@@ -583,17 +587,18 @@ io.on('connection', (socket) => {
               console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
             });
         } else if (song.source === 'youtube' && song.url) {
-          fileHandler.downloadFromYoutube(song.url, roomId, song.id)
-            .then(({ filePath, publicUrl }) => {
-              song.filePath = filePath;
-              song.publicUrl = publicUrl;
-              song.streamUrl = publicUrl;
-              console.log(`[~] Pre-fetched YouTube: ${song.title}`);
-              io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
-            })
-            .catch(err => {
-              console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
-            });
+                  fileHandler.downloadFromYoutube(song.url, roomId, song.id)
+                    .then((result) => {
+                      song.filePath = result.filePath;
+                      song.publicUrl = result.publicUrl;
+                      song.streamUrl = result.publicUrl;
+                      song.isYouTubeStream = true;
+                      console.log(`[~] Pre-fetched YouTube: ${song.title}`);
+                      io.to(roomId).emit('queue:updated', roomManager.getQueue(roomId));
+                    })
+                    .catch(err => {
+                      console.error(`Pre-fetch failed for ${song.title}: ${err.message}`);
+                    });
         }
   }
 

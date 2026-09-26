@@ -114,7 +114,7 @@ class RoomManager {
           addedBy: song.addedBy || 'Unknown',
           addedById: song.addedById || '',
           addedAt: Date.now(),
-          source: song.source || 'local', // 'local' | 'gdrive' | 'url'
+          source: song.source || 'local', // 'local' | 'gdrive' | 'youtube'
           lastPlayedAt: null // tracks recency for LRU eviction
         };
 
@@ -153,12 +153,16 @@ class RoomManager {
       const room = this.rooms.get(roomId);
       if (!room) return null;
 
-      // Only evict if over max size
-      if (room.queue.length <= MAX_QUEUE_SIZE) return null;
+      // Count only disk-based songs (local uploads + Google Drive downloads)
+      const diskSongs = room.queue.filter(s => s.source === 'local' || s.source === 'gdrive');
+      // YouTube songs are streamed (no disk usage), so they're excluded from the LRU limit
 
-      // Find the LRU song - exclude the currently playing song
+      // Only evict if disk-based songs exceed max size
+      if (diskSongs.length <= MAX_QUEUE_SIZE) return null;
+
+      // Find the LRU disk-based song - exclude the currently playing song
       const currentSongId = room.playerState.currentSong?.id;
-      const eligible = room.queue.filter(s => s.id !== currentSongId);
+      const eligible = diskSongs.filter(s => s.id !== currentSongId);
 
       if (eligible.length === 0) return null;
 
@@ -176,6 +180,20 @@ class RoomManager {
       const lru = eligible[0];
       this.removeFromQueue(roomId, lru.id);
       return lru;
+    }
+
+    /** Get count of disk-based songs (local + gdrive) in the queue */
+    getDiskSongCount(roomId) {
+      const room = this.rooms.get(roomId);
+      if (!room) return 0;
+      return room.queue.filter(s => s.source === 'local' || s.source === 'gdrive').length;
+    }
+
+    /** Get count of YouTube stream songs in the queue */
+    getYoutubeSongCount(roomId) {
+      const room = this.rooms.get(roomId);
+      if (!room) return 0;
+      return room.queue.filter(s => s.source === 'youtube').length;
     }
 
   reorderQueue(roomId, fromIndex, toIndex) {
