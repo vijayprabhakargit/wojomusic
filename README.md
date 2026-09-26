@@ -1,5 +1,7 @@
 ﻿# 🐱 Wojo Music - Sync Music Player
 
+> **🌐 Live at [https://wojomusic.onrender.com](https://wojomusic.onrender.com)**
+
 A real-time synchronized music player with a retro cassette player aesthetic. Create rooms, invite friends, and listen to music together in perfect sync.
 
 ## 🎯 Features
@@ -35,7 +37,7 @@ A real-time synchronized music player with a retro cassette player aesthetic. Cr
 
 ## 🚀 Quick Start
 
-`ash
+```bash
 # Install dependencies
 cd server && npm install
 cd ../client && npm install
@@ -43,7 +45,7 @@ cd ..
 
 # Start in development mode
 npm run dev
-`
+```
 
 This starts:
 - **Server** at http://localhost:3001
@@ -51,19 +53,19 @@ This starts:
 
 ### Production Build
 
-`ash
+```bash
 # Build client
 cd client && npm run build
 
 # Start server (serves client build + API)
 cd ../server && npm start
-`
+```
 
 Server will be at http://localhost:3001 serving both API and client.
 
 ## 🏗 Project Structure
 
-`
+```
 wojomusic/
 ├── server/
 │   ├── index.js          # Express + Socket.IO server
@@ -72,6 +74,8 @@ wojomusic/
 │   ├── uploads/          # Uploaded audio files (auto-created)
 │   └── package.json
 ├── client/
+│   ├── public/
+│   │   └── favicon.svg   # Cat-with-headphones logo
 │   ├── src/
 │   │   ├── App.jsx          # Main app with page routing
 │   │   ├── index.css        # Retro cassette CSS theme
@@ -89,7 +93,7 @@ wojomusic/
 │   ├── package.json
 │   └── vite.config.js
 └── package.json
-`
+```
 
 ## 🎮 How to Use
 
@@ -131,19 +135,25 @@ When the admin leaves, the next moderator or listener is promoted to admin.
 
 ## 🌐 Deployment (Render)
 
-This app is designed for Render free tier deployment:
+This app is deployed on Render's free tier:
 
-`yaml
+**Live URL:** [https://wojomusic.onrender.com](https://wojomusic.onrender.com)
+
+```yaml
 # Render Service Configuration
 services:
   - type: web
-    name: wojo-music
-    env: node
-    buildCommand: |
-      cd client && npm install && npm run build
-      cd ../server && npm install
+    name: wojomusic
+    runtime: node
+    plan: free
+    buildCommand: npm run build
     startCommand: cd server && node index.js
-`
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: CLIENT_URL
+        value: "https://wojomusic.onrender.com"
+```
 
 **Resource Limits Consideration:**
 - Render free tier: 512MB RAM, ~50GB storage
@@ -155,7 +165,7 @@ services:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | PORT | 3001 | Server port |
-| CLIENT_URL | * | CORS origin (CORS origin URL for production) |
+| CLIENT_URL | * | CORS origin for production |
 
 ## 🧹 Cleanup
 

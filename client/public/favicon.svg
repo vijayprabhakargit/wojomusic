@@ -26,8 +26,8 @@
   <!-- Right headphone cup -->
   <rect x="37" y="20" rx="4" ry="4" width="7" height="10" fill="#8B7355"/>
   <!-- Whiskers -->
-  <line x1="12" y1="30" x2="5" y2="28" stroke="#8B7355" stroke-width="1"/>
-  <line x1="12" y1="32" x2="5" y2="34" stroke="#8B7355" stroke-width="1"/>
-  <line x1="36" y1="30" x2="43" y2="28" stroke="#8B7355" stroke-width="1"/>
-  <line x1="36" y1="32" x2="43" y2="34" stroke="#8B7355" stroke-width="1"/>
-</svg>userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+    <line x1="12" y1="30" x2="5" y2="28" stroke="#8B7355" stroke-width="1"/>
+    <line x1="12" y1="32" x2="5" y2="34" stroke="#8B7355" stroke-width="1"/>
+    <line x1="36" y1="30" x2="43" y2="28" stroke="#8B7355" stroke-width="1"/>
+    <line x1="36" y1="32" x2="43" y2="34" stroke="#8B7355" stroke-width="1"/>
+  </svg>
