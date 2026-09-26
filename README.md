@@ -249,4 +249,17 @@ Reimagine the interface with a **click-wheel inspired layout** while keeping the
 
 ---
 
+
+
+### Quick Wins (shorter-term)
+
+- [ ] **YouTube/SoundCloud link support** — paste a link to add to queue
+- [ ] **Playlist import** — upload .m3u, .m3u8, .pls files or paste playlist URLs
+- [ ] **Volume control per participant** — each person adjusts their own volume
+- [ ] **Song duration display in queue** — show how long each song is
+- [ ] **Admin password protection** — password-protect room creation
+- [ ] **Room history / now playing screen** — show recently played songs
+- [ ] **Audio transcoding** — convert unsupported formats server-side for broad compatibility
+
+
 *Got ideas or want to contribute? Open an issue or PR on [GitHub](https://github.com/vijayprabhakargit/wojomusic).*
