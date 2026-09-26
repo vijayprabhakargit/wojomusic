@@ -287,12 +287,12 @@ export default function Room({ socket, onLeave }) {
         flexDirection: isMobile ? 'column' : 'row',
       }}>
         {/* Left Column - Player */}
-        <div style={{
-          flex: '1 1 60%',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}>
+                <div style={{
+                  flex: isMobile ? '0 0 auto' : '1 1 60%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}>
           {/* Walkman Player */}
           <WalkmanPlayer
             playerState={playerState}
