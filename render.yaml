@@ -5,8 +5,7 @@ services:
     name: wojo-music
     runtime: node
     plan: free
-    buildCommand: |
-      cd client && npm install && npm run build && cd ../server && npm install
+    buildCommand: npm run build
     startCommand: cd server && node index.js
     healthCheckPath: /
     envVars:
