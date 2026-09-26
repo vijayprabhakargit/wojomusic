@@ -2,7 +2,7 @@
 
 services:
   - type: web
-    name: wojo-music
+    name: wojomusic
     runtime: node
     plan: free
     buildCommand: npm run build
@@ -12,7 +12,7 @@ services:
       - key: NODE_VERSION
         value: 22
       - key: CLIENT_URL
-        value: https://wojo-music.onrender.com
+        value: https://wojomusic.onrender.com
       - key: PORT
         value: "10000"
     # Render will set PORT to 10000 automatically; this is just a fallback
