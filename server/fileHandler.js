@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const ytdl = require('ytdl-core');
+const youtubedl = require('youtube-dl-exec');
 
 class FileHandler {
   constructor(uploadsDir, maxFileSize = 30 * 1024 * 1024) {
@@ -151,70 +151,67 @@ class FileHandler {
   }
 
   /**
-   * Download audio from a YouTube video using ytdl-core
-   */
-  async downloadFromYoutube(url, roomId, songId) {
-    const roomDir = path.join(this.uploadsDir, roomId);
-    if (!fs.existsSync(roomDir)) fs.mkdirSync(roomDir, { recursive: true });
+     * Download audio from a YouTube video using yt-dlp (via youtube-dl-exec)
+     * Downloads the best audio format and saves it to disk.
+     */
+    async downloadFromYoutube(url, roomId, songId) {
+      const roomDir = path.join(this.uploadsDir, roomId);
+      if (!fs.existsSync(roomDir)) fs.mkdirSync(roomDir, { recursive: true });
 
-    const storedName = `${songId}.mp3`;
-    const filePath = path.join(roomDir, storedName);
-    const publicUrl = `/uploads/${roomId}/${storedName}`;
+      // Check if already downloaded (any extension match)
+      const existing = fs.readdirSync(roomDir).find(f => f.startsWith(songId));
+      if (existing) {
+        const filePath = path.join(roomDir, existing);
+        const publicUrl = `/uploads/${roomId}/${existing}`;
+        return { filePath, publicUrl };
+      }
 
-    // If already exists, return it
-    if (fs.existsSync(filePath)) return { filePath, publicUrl };
+      // Download using yt-dlp
+            const outputTemplate = path.join(roomDir, `${songId}.%(ext)s`);
+            await youtubedl(url, {
+              format: 'bestaudio/best',
+              output: outputTemplate,
+              noWarnings: true,
+              preferFreeFormats: true,
+              quiet: true,
+            });
 
-    return new Promise((resolve, reject) => {
-      const stream = ytdl(url, {
-        filter: 'audioonly',
-        quality: 'highestaudio',
-      });
+      // Find the actual output file
+      const files = fs.readdirSync(roomDir).filter(f => f.startsWith(songId));
+      if (files.length === 0) {
+        throw new Error('YouTube download failed - no output file created');
+      }
 
-      const writer = fs.createWriteStream(filePath);
-      let downloadedSize = 0;
+      const actualPath = path.join(roomDir, files[0]);
+      const publicUrl = `/uploads/${roomId}/${files[0]}`;
 
-      stream.on('error', (err) => {
-        writer.destroy();
-        // Clean up partial file
-        if (fs.existsSync(filePath)) {
-          try { fs.unlinkSync(filePath); } catch (_) {}
-        }
-        reject(new Error(`YouTube download failed: ${err.message}`));
-      });
+      // Size check
+      const stats = fs.statSync(actualPath);
+      if (stats.size > this.maxFileSize) {
+        fs.unlinkSync(actualPath);
+        throw new Error(`YouTube audio too large (max ${this.formatBytes(this.maxFileSize)})`);
+      }
 
-      stream.on('data', (chunk) => {
-        downloadedSize += chunk.length;
-        if (downloadedSize > this.maxFileSize) {
-          stream.destroy();
-          writer.destroy();
-          if (fs.existsSync(filePath)) {
-            try { fs.unlinkSync(filePath); } catch (_) {}
-          }
-          reject(new Error(`YouTube audio too large (max ${this.formatBytes(this.maxFileSize)})`));
-        }
-      });
-
-      writer.on('finish', () => resolve({ filePath, publicUrl }));
-      writer.on('error', (err) => {
-        reject(new Error(`File write error: ${err.message}`));
-      });
-
-      stream.pipe(writer);
-    });
-  }
+      console.log(`[~] Downloaded YouTube audio: ${files[0]} (${this.formatBytes(stats.size)})`);
+      return { filePath: actualPath, publicUrl };
+    }
 
   /**
-   * Fetch YouTube video metadata (title, duration) using ytdl-core
-   */
-  async getYoutubeInfo(url) {
-    const info = await ytdl.getInfo(url);
-    const videoDetails = info.videoDetails;
-    return {
-      title: videoDetails.title,
-      duration: parseInt(videoDetails.lengthSeconds, 10) || 0,
-      thumbnail: videoDetails.thumbnails?.[0]?.url || '',
-    };
-  }
+     * Fetch YouTube video metadata (title, duration) using yt-dlp (via youtube-dl-exec)
+     */
+    async getYoutubeInfo(url) {
+      const info = await youtubedl(url, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        preferFreeFormats: true,
+        format: 'bestaudio/best',
+      });
+      return {
+        title: info.title || 'Unknown Title',
+        duration: parseInt(info.duration, 10) || 0,
+        thumbnail: info.thumbnail || '',
+      };
+    }
 
   _registerFile(roomId, fileRecord) {
     if (!this.fileRegistry.has(roomId)) {

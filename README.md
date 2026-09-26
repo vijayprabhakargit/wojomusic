@@ -12,6 +12,7 @@ A real-time synchronized music player with a retro cassette player aesthetic. Cr
 - **Multiple Music Sources**:
   - Upload audio files from your device (MP3, WAV, OGG, FLAC, etc.)
   - Add public Google Drive share links
+  - **Paste YouTube links** — fetches title & duration, extracts audio when the song reaches the top of the queue (supports video, Shorts, youtu.be links)
 - **Smart Pre-fetching**: Downloads next songs in the background while current song plays
 - **Role-based Access**: Admin → full control, Moderator → control playback & queue, Listener → only add songs & chat
 - **Live Chat**: Built-in chat room for participants
@@ -28,6 +29,7 @@ A real-time synchronized music player with a retro cassette player aesthetic. Cr
 | **Real-time** | Socket.IO (WebSocket + Polling) |
 | **Styling** | Custom CSS (retro cassette theme) |
 | **File Storage** | Server filesystem (in-memory room state) |
+| **YouTube** | yt-dlp (via youtube-dl-exec) — audio extraction & metadata |
 | **Font** | Share Tech Mono (Google Fonts) |
 
 ## 📋 Prerequisites
@@ -86,7 +88,7 @@ wojomusic/
 │   │   │   └── Room.jsx     # Main music room page
 │   │   └── components/
 │   │       ├── WalkmanPlayer.jsx  # Cassette player UI
-│   │       ├── SourceSelector.jsx # File/GDrive source picker
+│   │   ├── SourceSelector.jsx # File/GDrive/YouTube source picker
 │   │       ├── QueuePanel.jsx     # Song queue list
 │   │       ├── Chat.jsx           # Live chat + participants
 │   │       └── Participants.jsx   # Participant list view
@@ -114,8 +116,11 @@ wojomusic/
 ### Adding Music
 1. Click **"Add Song"** on the player
 2. Choose **"From My Device"** → select audio files (max 30MB each)
-3. OR choose **"Google Drive"** → paste a public share link
-4. Songs are added to the queue and play automatically
+3. Choose **"Google Drive"** → paste a public share link
+4. OR choose **"YouTube"** → paste a YouTube video or Shorts link (title/duration fetched automatically)
+5. Songs are added to the queue and play automatically
+
+> 💡 **YouTube songs** are downloaded as audio when they reach the top of the queue, then cached and streamed to all participants — same deferred-download pattern as Google Drive. Powered by yt-dlp behind the scenes.
 
 ### Player Controls (Admin/Moderator only)
 - ▶️ **Play** / ⏸ **Pause**
@@ -179,9 +184,10 @@ A bold vision to evolve Wojo Music into a cross-platform, multi-source music syn
 
 ### 🎬 Ad-Free YouTube Streamer
 
-Integrate youtube-dl / yt-dlp (or the YouTube Data API with a server-side proxy) to allow:
+✅ **Done:** Paste a YouTube link → fetches title & duration → adds to queue → downloads audio when it reaches the top (deferred-download pattern).
+
+**Still to explore:**
 - Searching and playing YouTube videos without ads or third-party embeds
-- Extracting audio streams directly via the server
 - **Unlimited queue** for YouTube sources (no 20-song LRU cap — that applies only to local uploads to conserve server storage)
 - Playlist support — drop a YouTube playlist URL and let it queue up
 - Voteskipping: room participants can vote to skip the current song (majority wins)
@@ -253,7 +259,7 @@ Reimagine the interface with a **click-wheel inspired layout** while keeping the
 
 ### Quick Wins (shorter-term)
 
-- [ ] **YouTube/SoundCloud link support** — paste a link to add to queue
+- [x] **YouTube link support** — paste a link to add to queue (now supports video, Shorts, youtu.be links)
 - [ ] **Playlist import** — upload .m3u, .m3u8, .pls files or paste playlist URLs
 - [ ] **Volume control per participant** — each person adjusts their own volume
 - [ ] **Song duration display in queue** — show how long each song is
