@@ -12,12 +12,12 @@ export default function Chat({
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length]);
+  // Auto-scroll to bottom on new messages — scroll the container directly
+    useEffect(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, [messages.length]);
 
   const handleSend = () => {
     if (input.trim()) {

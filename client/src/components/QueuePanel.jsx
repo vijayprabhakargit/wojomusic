@@ -77,9 +77,9 @@ export default function QueuePanel({
       {/* Queue List */}
       <div style={{
         flex: 1,
-        overflowY: 'auto',
-        padding: '8px',
-        maxHeight: '350px',
+                overflowY: 'auto',
+                padding: '8px',
+                minHeight: 0,
       }}>
         {queue.length === 0 ? (
           <div style={{

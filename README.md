@@ -1,12 +1,12 @@
-﻿# 📼 Walkman Room - Sync Music Player
+﻿# 🐱 Wojo Music - Sync Music Player
 
-A real-time synchronized music player with a retro Walkman/cassette player aesthetic. Create rooms, invite friends, and listen to music together in perfect sync.
+A real-time synchronized music player with a retro cassette player aesthetic. Create rooms, invite friends, and listen to music together in perfect sync.
 
 ## 🎯 Features
 
 - **Room-based Music Streaming**: Create or join rooms with a shareable 6-character room ID
 - **Real-time Sync**: All participants hear the same song at the same position - like a shared radio
-- **Walkman Cassette UI**: Retro skeuomorphic design with spinning tape reels and audio visualizer
+- **Cassette Player UI**: Retro skeuomorphic design with spinning tape reels and audio visualizer
 - **Multiple Music Sources**:
   - Upload audio files from your device (MP3, WAV, OGG, FLAC, etc.)
   - Add public Google Drive share links
@@ -137,7 +137,7 @@ This app is designed for Render free tier deployment:
 # Render Service Configuration
 services:
   - type: web
-    name: music-room
+    name: wojo-music
     env: node
     buildCommand: |
       cd client && npm install && npm run build

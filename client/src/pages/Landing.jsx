@@ -59,26 +59,24 @@ export default function Landing({ socket, onRoomCreated, onRoomJoined }) {
         padding: '40px',
       }}>
         {/* Logo / Header */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{
-            fontSize: '48px',
-            marginBottom: '10px',
-            filter: 'sepia(0.5)',
-          }}>
-            📼
-          </div>
-          <h1 style={{
-            fontSize: '24px',
-            color: 'var(--accent)',
-            marginBottom: '8px',
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-          }}>
-            Walkman Room
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Create a music room and jam with friends
-          </p>
+                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                  <img
+                    src="/favicon.svg"
+                    alt="Wojo Music"
+                    style={{ width: '64px', height: '64px', marginBottom: '10px' }}
+                  />
+                  <h1 style={{
+                    fontSize: '24px',
+                    color: 'var(--accent)',
+                    marginBottom: '8px',
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                  }}>
+                    Wojo Music
+                  </h1>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    Listen together. Real-time sync.
+                  </p>
         </div>
 
         {/* Connection status */}
@@ -276,7 +274,7 @@ export default function Landing({ socket, onRoomCreated, onRoomJoined }) {
           borderTop: '1px solid #333',
           paddingTop: '15px',
         }}>
-          <p>📼 Retro vibes. Real-time sync.</p>
+          <p>🐱 Wojo Music — listen together.</p>
         </div>
       </div>
     </div>

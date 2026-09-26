@@ -1,8 +1,8 @@
-# Walkman Room - Design Document
+# Wojo Music - Design Document
 
 ## 1. Overview
 
-Walkman Room is a real-time synchronized music player where multiple users can join a virtual room, add songs to a shared queue, and listen to music together in perfect sync. The UI is themed after a retro Walkman cassette player.
+Wojo Music is a real-time synchronized music player where multiple users can join a virtual room, add songs to a shared queue, and listen to music together in perfect sync. The UI is themed after a retro cassette player.
 
 ## 2. Design Decisions
 

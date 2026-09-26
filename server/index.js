@@ -475,5 +475,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🎵 Music Room Server running on port ${PORT}`);
+  console.log(`🎵 Wojo Music Server running on port ${PORT}`);
 });

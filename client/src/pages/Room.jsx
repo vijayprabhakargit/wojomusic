@@ -11,10 +11,18 @@ export default function Room({ socket, onLeave }) {
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const syncIntervalRef = useRef(null);
-  const [localPosition, setLocalPosition] = useState(0);
+    const [localPosition, setLocalPosition] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  // Track viewport size reactively so layout responds to resizes
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
   const currentSong = playerState?.currentSong;
@@ -200,9 +208,11 @@ export default function Room({ socket, onLeave }) {
     return (localPosition / duration) * 100;
   };
 
-  return (
+    return (
     <div style={{
       minHeight: '100vh',
+      height: isMobile ? 'auto' : '100vh',
+      overflow: isMobile ? 'visible' : 'hidden',
       display: 'flex',
       flexDirection: 'column',
       padding: '10px',
@@ -232,10 +242,10 @@ export default function Room({ socket, onLeave }) {
         gap: '8px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>📼</span>
-          <span style={{ color: 'var(--accent)', fontSize: '16px', fontWeight: 'bold' }}>
-            Walkman Room
-          </span>
+          <img src="/favicon.svg" alt="Wojo" style={{ width: '28px', height: '28px' }} />
+                    <span style={{ color: 'var(--accent)', fontSize: '16px', fontWeight: 'bold' }}>
+                      Wojo Music
+                    </span>
           {!isConnected && (
             <span style={{ color: 'var(--danger)', fontSize: '12px' }}>
               ⚠ Disconnected
@@ -270,11 +280,12 @@ export default function Room({ socket, onLeave }) {
       </div>
 
       {/* Main Content */}
-      <div style={{
+                  <div style={{
         display: 'flex',
         gap: '10px',
         flex: 1,
-        flexDirection: window.innerWidth < 768 ? 'column' : 'row',
+        minHeight: 0,
+        flexDirection: isMobile ? 'column' : 'row',
       }}>
         {/* Left Column - Player */}
         <div style={{
@@ -353,22 +364,23 @@ export default function Room({ socket, onLeave }) {
         </div>
 
         {/* Right Column - Panels (Desktop) */}
-        <div style={{
+                <div style={{
           flex: '1 1 40%',
           display: 'flex',
           flexDirection: 'column',
           gap: '10px',
           minWidth: '300px',
+          minHeight: 0,
         }}>
           {/* Queue Panel */}
           <div className="glass-panel" style={{
             flex: '1 1 50%',
-            display: window.innerWidth < 768 ? (activePanel === 'queue' ? 'flex' : 'none') : 'flex',
+            display: isMobile ? (activePanel === 'queue' ? 'flex' : 'none') : 'flex',
             flexDirection: 'column',
-            minHeight: '200px',
-            overflow: 'hidden',
-          }}>
-            <QueuePanel
+            minHeight: isMobile ? '200px' : 0,
+                        overflow: 'hidden',
+                      }}>
+                        <QueuePanel
               queue={queue}
               currentIndex={playerState?.currentIndex}
               myInfo={myInfo}
@@ -382,12 +394,12 @@ export default function Room({ socket, onLeave }) {
           {/* Chat + Participants */}
           <div className="glass-panel" style={{
             flex: '1 1 50%',
-            display: window.innerWidth < 768 ? (activePanel === 'chat' || activePanel === 'participants' ? 'flex' : 'none') : 'flex',
+            display: isMobile ? (activePanel === 'chat' || activePanel === 'participants' ? 'flex' : 'none') : 'flex',
             flexDirection: 'column',
-            minHeight: '250px',
-            overflow: 'hidden',
-          }}>
-            {activePanel === 'participants' && window.innerWidth < 768 ? (
+            minHeight: isMobile ? '250px' : 0,
+                        overflow: 'hidden',
+                      }}>
+                        {activePanel === 'participants' && isMobile ? (
               <Participants
                 participants={participants}
                 myInfo={myInfo}
