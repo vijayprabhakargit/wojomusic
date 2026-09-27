@@ -28,24 +28,26 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
-// Serve client build in production
-const clientDist = path.join(__dirname, '../client/dist');
-if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist));
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/socket.io') && !req.path.startsWith('/uploads')) {
-      res.sendFile(path.join(clientDist, 'index.html'));
-    }
-  });
-  console.log('[~] Serving client build from', clientDist);
-}
-
 // Initialize managers
 const roomManager = new RoomManager();
 const fileHandler = new FileHandler(uploadsDir, 30 * 1024 * 1024); // 30MB max
 
 // YouTube audio streaming proxy
+// NOTE: must be registered BEFORE the SPA catch-all below, otherwise the
+// catch-all intercepts /api/* requests and serves index.html.
 app.get('/api/youtube-audio/:videoId', fileHandler.createYouTubeProxy());
+
+// Serve client build in production
+const clientDist = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/socket.io') && !req.path.startsWith('/uploads') && !req.path.startsWith('/api/')) {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    }
+  });
+  console.log('[~] Serving client build from', clientDist);
+}
 
 // ===================== SOCKET.IO HANDLERS =====================
 
@@ -610,4 +612,11 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   console.log(`🎵 Wojo Music Server running on port ${PORT}`);
+
+  // Warm up the YouTube session in the background (non-blocking) so the
+  // first user request is fast and the PoToken pipeline is initialised.
+  import('./youtube.mjs')
+    .then((m) => m.warmUp())
+    .then((ok) => console.log(`[~] YouTube engine warm-up: ${ok ? 'ready' : 'deferred'}`))
+    .catch((err) => console.warn('[~] YouTube warm-up failed:', err.message));
 });

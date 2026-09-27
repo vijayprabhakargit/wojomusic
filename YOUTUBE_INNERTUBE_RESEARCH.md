@@ -2,7 +2,55 @@
 
 ## Overview
 
-This document consolidates research from multiple open-source YouTube streaming projects to build a robust InnerTube-based audio streamer for Wojo Music. The 400 Bad Request error occurs when the InnerTube API rejects the request payload � typically due to outdated client versions, missing required fields, or lack of PoToken (Proof of Origin Token).
+This document consolidates research from multiple open-source YouTube streaming projects to build a robust InnerTube-based audio streamer for Wojo Music. The 400 Bad Request error occurs when the InnerTube API rejects the request payload — typically due to outdated client versions, missing required fields, or lack of PoToken (Proof of Origin Token).
+
+---
+
+## Implementation Update (RESOLVED)
+
+The hand-rolled InnerTube client was replaced with the maintained
+[`youtubei.js`](https://github.com/LuanRT/YouTube.js) library (`server/youtube.mjs`).
+Key findings that drove the change:
+
+1. **Hand-rolled WEB client requests were rejected** with
+   `playabilityStatus.status = UNPLAYABLE / reason = "Video unavailable"` — regardless of
+   PoToken, visitor data, API key, base URL, or `signatureTimestamp`. The same request via
+   `youtubei.js` succeeds, because the library sends additional session/context fields the
+   minimal request omitted.
+2. **`ANDROID_VR` and `IOS` return direct (un-ciphered) streaming URLs** and need no PoToken
+   and no JS interpreter. They are used first.
+3. **`WEB`/`WEB_REMIX` return `signatureCipher` URLs** and require a JS interpreter
+   (`Platform.shim.eval`) to decipher. They are used as a fallback, with a content-bound
+   (videoId) WebPO token attached.
+4. **Streaming works** through the existing `/api/youtube-audio/:videoId` proxy — YouTube's
+   CDN honours HTTP Range requests and returns `206 Partial Content` (`audio/mp4` / DASH).
+5. **Routing bug fixed:** the SPA catch-all `app.get('*')` in `server/index.js` was
+   registered *before* `/api/youtube-audio/:videoId`, so the proxy was never reached (it
+   served `index.html`). The API route is now registered first, and the catch-all skips
+   `/api/`.
+
+### Architecture
+```
+browser <audio src=/api/youtube-audio/:id>
+   -> Express proxy (server/index.js)
+      -> FileHandler.getYouTubeStreamUrl(id)   [server/fileHandler.js, caches 1h]
+         -> youtube.mjs getStreamUrl(id)        [youtubei.js; ANDROID_VR -> IOS -> WEB_REMIX/WEB]
+            -> Playable CDN URL (Range request relayed back to browser)
+```
+
+---
+
+## Additional Reference Projects
+
+### InnerTube-API (MohammadKobirShah) — Python/FastAPI wrapper
+- Powering engine: [`tombulled/innertube`](https://github.com/tombulled/innertube)
+- Notable pattern: captures `responseContext.visitorData` from a response and reuses it as
+  the `X-Goog-Visitor-Id` header on subsequent requests (a stateful session), rather than
+  re-scraping the homepage each time.
+
+### JMusicBot (jagrosh) — Java Discord bot
+- Delegates all YouTube work to [lavaplayer](https://github.com/sedmelluq/lavaplayer),
+  which keeps its own client configs and handles cipher/signature transforms.
 
 ---
 
