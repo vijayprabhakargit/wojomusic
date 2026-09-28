@@ -19,9 +19,14 @@ Key findings that drove the change:
    minimal request omitted.
 2. **`ANDROID_VR` and `IOS` return direct (un-ciphered) streaming URLs** and need no PoToken
    and no JS interpreter. They are used first.
-3. **`WEB`/`WEB_REMIX` return `signatureCipher` URLs** and require a JS interpreter
+3. **`WEB`/`YTMUSIC` return `signatureCipher` URLs** and require a JS interpreter
    (`Platform.shim.eval`) to decipher. They are used as a fallback, with a content-bound
    (videoId) WebPO token attached.
+   **Client-name caveat (youtubei.js 18.x):** `Constants.SUPPORTED_CLIENTS` uses the short
+   client names (`YTMUSIC`, `TV`, ...). The InnerTube *protocol* name `WEB_REMIX` is NOT
+   accepted by `getBasicInfo({ client })` — it throws `Invalid client: WEB_REMIX`. Use
+   `client: 'YTMUSIC'`. `TV` (TVHTML5) is excluded from the fallback chain: it returns
+   `UNPLAYABLE :: The page needs to be reloaded.`
 4. **Streaming works** through the existing `/api/youtube-audio/:videoId` proxy — YouTube's
    CDN honours HTTP Range requests and returns `206 Partial Content` (`audio/mp4` / DASH).
 5. **Routing bug fixed:** the SPA catch-all `app.get('*')` in `server/index.js` was
@@ -34,7 +39,7 @@ Key findings that drove the change:
 browser <audio src=/api/youtube-audio/:id>
    -> Express proxy (server/index.js)
       -> FileHandler.getYouTubeStreamUrl(id)   [server/fileHandler.js, caches 1h]
-         -> youtube.mjs getStreamUrl(id)        [youtubei.js; ANDROID_VR -> IOS -> WEB_REMIX/WEB]
+         -> youtube.mjs getStreamUrl(id)        [youtubei.js; ANDROID_VR -> IOS -> WEB -> YTMUSIC]
             -> Playable CDN URL (Range request relayed back to browser)
 ```
 
@@ -226,7 +231,7 @@ Alternative origins:
 
 ## PoToken (Proof of Origin Token) Flow
 
-Required for many clients (WEB, WEB_REMIX, TVHTML5_SIMPLY). The flow:
+Required for WEB-family clients (WEB, YTMUSIC, TVHTML5_SIMPLY). ANDROID_VR/IOS/ANDROID do not require it. The flow:
 
 ```
 1. Fetch BotGuard interpreter script from YouTube page data

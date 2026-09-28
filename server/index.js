@@ -36,6 +36,25 @@ const fileHandler = new FileHandler(uploadsDir, 30 * 1024 * 1024); // 30MB max
 // NOTE: must be registered BEFORE the SPA catch-all below, otherwise the
 // catch-all intercepts /api/* requests and serves index.html.
 app.get('/api/youtube-audio/:videoId', fileHandler.createYouTubeProxy());
+// Production diagnostics: egress IP, identity state and per-client status
+// matrix. Protect with YT_DEBUG_KEY when set in production.
+app.get('/api/yt-debug', async (req, res) => {
+  const key = process.env.YT_DEBUG_KEY;
+  if (key && req.query.key !== key) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const youtube = await import('./youtube.mjs');
+    const videoId = String(req.query.videoId || 'dQw4w9WgXcQ');
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      return res.status(400).json({ error: 'Invalid videoId' });
+    }
+    const result = await youtube.diagnose(videoId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Serve client build in production
 const clientDist = path.join(__dirname, '../client/dist');

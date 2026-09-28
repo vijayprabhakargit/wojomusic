@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node tests/youtube.test.mjs"
   },
   "dependencies": {
     "axios": "^1.6.2",

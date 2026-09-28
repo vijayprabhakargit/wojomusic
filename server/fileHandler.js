@@ -17,6 +17,20 @@ function loadYoutube() {
 // Stream URL Cache (YouTube CDN links live ~6h; cache well under that)
 const streamUrlCache = new Map();
 const STREAM_CACHE_TTL = 60 * 60 * 1000;
+// Register a hook that wipes the stream-URL cache whenever the YouTube
+// identity rotates � CDN URLs are bound to the (visitorData, poToken)
+// pair they were minted under, so post-rotation they are poison.
+loadYoutube().then((youtube) => {
+  if (youtube.onIdentityRotation) {
+    youtube.onIdentityRotation(() => {
+      const n = streamUrlCache.size;
+      streamUrlCache.clear();
+      console.log(`[~] Stream URL cache cleared on identity rotation (${n} entries)`);
+    });
+  }
+}).catch((err) => {
+  console.warn('[~] Could not register rotation hook:', err.message);
+});
 
 // FileHandler Class
 class FileHandler {
@@ -106,26 +120,28 @@ class FileHandler {
   }
 
   createYouTubeProxy() {
+    const self = this;
     return async function(req, res) {
       const videoId = req.params.videoId;
       if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
         return res.status(400).json({ error: 'Invalid video ID' });
       }
-      try {
-        const stream = await this.getYouTubeStreamUrl(videoId);
-        const rangeHeader = req.headers.range || 'bytes=0-';
-        const userAgent = req.headers['user-agent'] || 'Mozilla/5.0';
-        const cdnResp = await axios({
-          method: 'GET',
-          url: stream.url,
-          responseType: 'stream',
-          timeout: 120000,
-          headers: {
-            'Range': rangeHeader,
-            'User-Agent': userAgent,
-            'Referer': 'https://www.youtube.com/',
-          },
-        });
+      const rangeHeader = req.headers.range || 'bytes=0-';
+      const userAgent = req.headers['user-agent'] || 'Mozilla/5.0';
+
+      const fetchCdn = (stream) => axios({
+        method: 'GET',
+        url: stream.url,
+        responseType: 'stream',
+        timeout: 120000,
+        headers: {
+          'Range': rangeHeader,
+          'User-Agent': userAgent,
+          'Referer': 'https://www.youtube.com/',
+        },
+      });
+
+      const pipe = (cdnResp) => {
         res.status(cdnResp.status);
         const contentHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
         for (let i = 0; i < contentHeaders.length; i++) {
@@ -137,9 +153,28 @@ class FileHandler {
           if (!res.headersSent) res.status(502).end();
           else res.end();
         });
-      } catch (err) {
-        console.error('[~] YouTube proxy error for ' + videoId + ': ' + err.message);
-        if (!res.headersSent) res.status(502).json({ error: 'Stream unavailable' });
+      };
+
+      // One retry with a freshly minted URL: a 403/expiry means the cached
+      // googlevideo URL (bound to the old identity/token) is stale.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const stream = await self.getYouTubeStreamUrl(videoId);
+          const cdnResp = await fetchCdn(stream);
+          if (cdnResp.status === 403) {
+            streamUrlCache.delete(videoId);
+            if (attempt === 0) continue;
+            return res.status(502).json({ error: 'Stream unavailable' });
+          }
+          pipe(cdnResp);
+          return;
+        } catch (err) {
+          if (res.headersSent) return;
+          streamUrlCache.delete(videoId);
+          if (attempt === 0) continue;
+          console.error('[~] YouTube proxy error for ' + videoId + ': ' + err.message);
+          return res.status(502).json({ error: 'Stream unavailable' });
+        }
       }
     }.bind(this);
   }

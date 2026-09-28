@@ -196,5 +196,77 @@ reaches the top of the queue, the server downloads just the audio stream via
   text input for YouTube URL, "Add to Queue" button.
 - [x] **7.7** Build and verify.
 
+---
 
+## Goal 8 — Fix "Sign in to confirm you're not a bot" in production (Render)
 
+**Problem:** Streaming works locally but fails (`playabilityStatus.status = LOGIN_REQUIRED`, reason
+"Sign in to confirm you're not a bot").
+
+**Root causes (verified against youtubei.js v18.1.0 + bgutils-js v4.0.3 sources
+and the yt-dlp PO Token Guide):**
+
+1. **No session-bound PoToken.** We mint a content-bound (video ID) token per
+   request via `getBasicInfo(id, { po_token })`, but never pass a token to
+   `Innertube.create({ po_token })`. Per the library docs: "If not provided,
+   session bound token will be used" — we never provide one, so on flagged
+   datacenter IPs (Render egress) the session itself is untrusted →
+   LOGIN_REQUIRED. Critically, `Innertube.create({ po_token })` is also what
+   sets `Player.po_token`, which is stamped as the `pot=` query parameter on
+   every deciphered googlevideo URL — and GVS requires a PoToken for web /
+   web_music / android / ios clients. Without it, CDN URLs 403 or throttle.
+2. **Visitor-data identity inconsistency.** We re-scrape a fresh visitor token
+   from the homepage every 30 min and discard it on restart, while the BotGuard
+   minter's attestation ran under a different identity. The WebPO token must be
+   minted from the SAME visitor data the session uses, and that
+   (visitorData, token) pair must be persisted and reused — the "stateful
+   session" pattern from tombulled/innertube and Metrolist.
+3. **No rotation/recovery.** When a (visitorData, token) pair gets flagged we
+   retry it forever. References rotate identity on LOGIN_REQUIRED.
+4. **Stale CDN URL cache across identity changes.** googlevideo URLs are
+   session/IP-bound; after an identity rotation the old cache is poison, and a
+   403 mid-stream is never retried with a fresh URL.
+
+### Steps
+
+- [x] **8.1** Rework `server/poToken.js` into a robust PoToken provider: one
+  shared BotGuard minter with TTL refresh, automatic rebuild on mint failure,
+  and `mint(contentBinding)` usable for both session-bound (visitor data) and
+  content-bound (video ID) tokens.
+- [x] **8.2** Implement the two-token architecture in `server/youtube.mjs`:
+  create session → read the *actual* `session.context.client.visitorData` →
+  mint a session-bound token from that exact value → recreate Innertube with
+  `{ visitor_data, po_token }` (this sets `Player.po_token` → `pot=` on all
+  deciphered URLs) → keep per-request content-bound tokens for WEB clients.
+- [x] **8.3** Persist the session identity `{ visitorData, sessionToken }` to
+  disk (env-configurable path, `YT_SESSION_FILE`) and reload it on boot, so
+  restarts on Render reuse the same trusted identity instead of starting cold
+  on every deploy.
+- [x] **8.4** Add identity rotation: on the bot check (LOGIN_REQUIRED), mark
+  the current identity flagged, mint a brand-new visitorData + session-token
+  pair, recreate the session, clear caches, and retry once. Guard with a
+  cooldown to prevent rotation storms.
+- [x] **8.5** Cache hygiene in `server/fileHandler.js`: clear the stream URL
+  cache on identity rotation; if the CDN returns 403 mid-proxy, invalidate the
+  cached URL for that video and refetch once with a fresh URL.
+- [x] **8.6** Add a `/api/yt-debug` endpoint in `server/index.js` and upgrade
+  `diagnose()` to report egress IP, identity age, session-token presence and a
+  per-client status matrix for production diagnosis.
+- [x] **8.7** Update `YOUTUBE_INNERTUBE_RESEARCH.md` documenting the two-token
+  architecture (session-bound vs content-bound) and rotation policy.
+- [x] **8.8** Run local test scripts and verify end-to-end (getInfo →
+  getStreamUrl → proxy → 206 partial content).
+
+### Post-plan fixes (found while verifying)
+
+- [x] **9.1** Invalid client key: `CLIENT_ORDER` used `WEB_REMIX`, which is not
+  a valid key in youtubei.js 18.x (`Constants.SUPPORTED_CLIENTS` has
+  `YTMUSIC`; the InnerTube protocol name `WEB_REMIX` throws
+  `Invalid client: WEB_REMIX`). Replaced with `YTMUSIC`, dropped `TV`
+  (TVHTML5 returns `UNPLAYABLE :: The page needs to be reloaded`), and
+  reordered to `ANDROID_VR, IOS, WEB, YTMUSIC` so the WEB clients (most
+  likely to get bot-checked on datacenter IPs) come after the reliable
+  native clients. Updated `WEB_CLIENTS`, the `diagnose()` client matrix,
+  `server/tests/test_diag.mjs` and `server/tests/youtube.test.mjs`.
+  Verified locally: full chain getInfo -> getStreamUrl -> CDN 206; matrix
+  15/15 pass; proxy tests 2/2 pass against a running server.

@@ -1,15 +1,22 @@
 // ============================================================
 // PoToken (Proof of Origin Token) generation via BotGuard
 // ============================================================
-// YouTube requires a PO token for most clients now. Without it,
-// requests are flagged with "Sign in to confirm you're not a bot".
-// This mirrors how Metrolist / Echo Music / InnerTubeX generate tokens:
+// Two distinct kinds of token are required (see YOUTUBE_INNERTUBE_RESEARCH.md,
+// "Two-token architecture"):
 //
-//   1. Fetch the BotGuard challenge (interpreter + program)
-//   2. Execute the interpreter JS to expose the BotGuard VM
-//   3. Load the program and take a "snapshot" -> botguardResponse
-//   4. Exchange botguardResponse for an integrity token (WAA API)
-//   5. Mint a WebPO token bound to the visitor/video id
+//   1. SESSION-BOUND token  -> minted with contentBinding = visitorData
+//      Passed to Innertube.create({ po_token }). This attests the whole
+//      session; youtubei.js also stamps it as Player.po_token, which becomes
+//      the `pot=` query parameter on every deciphered googlevideo URL — and
+//      GVS rejects/403s URLs lacking `pot=` when requested from datacenter
+//      IPs (Render egress).
+//
+//   2. CONTENT-BOUND token  -> minted with contentBinding = <video id>
+//      Passed per-request via getBasicInfo(id, { po_token }) for WEB clients.
+//
+// Pipeline (bgutils-js — the same one Metrolist/Echo/InnerTubeX follow):
+//   fetch BotGuard challenge -> run interpreter -> snapshot -> exchange for
+//   integrity token (WAA GenerateIT) -> WebPoMinter.mintAsWebsafeString(binding)
 //
 // bgutils-js is ESM-only, so we load it dynamically from CJS.
 
@@ -63,11 +70,20 @@ function ensureDom() {
   domReady = true;
 }
 
-// ---- Cached BotGuard resources ----
+// ---- Shared BotGuard minter (TTL-refreshed, rebuilt on failure) ----
 let webPoMinter = null;
 let minterExpiresAt = 0;
+let mintingPromise = null;
 const MINTER_SAFETY_MS = 15 * 60 * 1000;
+const MINTER_MIN_TTL_MS = 60 * 1000;
 
+function getFetch(fetchImpl) {
+  const f = fetchImpl || globalThis.fetch;
+  if (typeof f !== 'function') throw new Error('No fetch implementation available');
+  return f;
+}
+
+// ---- Cached BotGuard resources ----
 async function buildMinter(fetchImpl) {
   const { BotGuardClient, getChallenge, WebPoMinter, buildURL, getHeaders } =
     await loadBgModules();
@@ -120,31 +136,61 @@ async function buildMinter(fetchImpl) {
   return webPoMinter;
 }
 
+/**
+ * Get a live minter. Concurrency-safe (single flight) and self-healing:
+ * any mint failure invalidates the minter and forces a rebuild next call.
+ */
 async function getMinter(fetchImpl) {
+  const f = getFetch(fetchImpl);
   if (webPoMinter && Date.now() < minterExpiresAt) return webPoMinter;
-  return buildMinter(fetchImpl);
+  if (mintingPromise) return mintingPromise;
+  mintingPromise = (async () => {
+    try {
+      return await buildMinter(f);
+    } finally {
+      mintingPromise = null;
+    }
+  })();
+  return mintingPromise;
+}
+
+function invalidateMinter() {
+  webPoMinter = null;
+  minterExpiresAt = 0;
+  mintingPromise = null;
 }
 
 /**
- * Mint a content-bound WebPO token for the given content binding.
- * @param {string} contentBinding - usually visitor data or video id
+ * Mint a WebPO token bound to the given binding string.
+ * @param {string} contentBinding - visitorData (session-bound) or video id (content-bound)
  * @param {Function} [fetchImpl]
  * @returns {Promise<string|null>}
  */
 async function generatePoToken(contentBinding, fetchImpl) {
   if (!contentBinding) return null;
-  const f = fetchImpl || globalThis.fetch;
-  if (typeof f !== 'function') throw new Error('No fetch implementation available');
   try {
+    const f = getFetch(fetchImpl);
     const minter = await getMinter(f);
     const token = await minter.mintAsWebsafeString(contentBinding);
     return token || null;
   } catch (err) {
-    webPoMinter = null;
-    minterExpiresAt = 0;
+    invalidateMinter();
     console.error('[~] PoToken generation failed: ' + err.message);
     return null;
   }
+}
+
+/**
+ * Mint a SESSION-BOUND token from the session's actual visitorData.
+ * This is the token that must be fed to Innertube.create({ po_token }).
+ */
+function mintSessionToken(visitorData, fetchImpl) {
+  return generatePoToken(visitorData, fetchImpl);
+}
+
+/** Mint a CONTENT-BOUND token for a specific video id (WEB-family clients). */
+function mintContentToken(videoId, fetchImpl) {
+  return generatePoToken(videoId, fetchImpl);
 }
 
 /** Warm up the BotGuard/minter pipeline ahead of time. */
@@ -152,4 +198,18 @@ async function warmUp(fetchImpl) {
   return generatePoToken('warmup', fetchImpl);
 }
 
-module.exports = { generatePoToken, warmUp };
+/** Force a fresh integrity token on the next mint (used after a flag/403). */
+function reset() {
+  invalidateMinter();
+}
+
+function status() {
+  return {
+    minterReady: !!webPoMinter,
+    expiresAt: minterExpiresAt,
+    expiresInSeconds: minterExpiresAt > 0 ? Math.round((minterExpiresAt - Date.now()) / 1000) : 0,
+  };
+}
+
+module.exports = { generatePoToken, mintSessionToken, mintContentToken, warmUp, reset, status };
+
