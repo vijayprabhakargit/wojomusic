@@ -11,7 +11,7 @@ import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperat
  * hidden behind artwork unless showVideo is true.
  */
 const YtIframePlayer = forwardRef(function YtIframePlayer(
-  { videoId, startAt = 0, showVideo, onReady, onEnded, onStateChange, onError, onToggleVideo },
+  { videoId, startAt = 0, onReady, onEnded, onStateChange, onError },
   ref
 ) {
   const containerRef = useRef(null);
@@ -45,6 +45,13 @@ const YtIframePlayer = forwardRef(function YtIframePlayer(
       playerVars: {
         playsinline: 1,
         rel: 0,
+        // Shared-room sync: YouTube's own controls would let one user
+        // pause/seek only their own copy and desync the room. All control
+        // goes through the walkman transport instead.
+        controls: 0,
+        disablekb: 1,
+        modestbranding: 1,
+        iv_load_policy: 3,
       },
       events: {
         onReady: () => {
@@ -117,38 +124,14 @@ const YtIframePlayer = forwardRef(function YtIframePlayer(
   return (
     <div
       style={{
-        // Video OFF: 1px, invisible, out of the way - audio keeps playing.
-        // Video ON: fixed centered overlay over the artwork (w2g-style).
-        position: showVideo ? 'fixed' : 'absolute',
-        width: showVideo ? 'min(90vw, 854px)' : '1px',
-        height: showVideo ? 'auto' : '1px',
-        aspectRatio: showVideo ? '16 / 9' : undefined,
-        top: showVideo ? '50%' : 0,
-        left: showVideo ? '50%' : 0,
-        transform: showVideo ? 'translate(-50%, -50%)' : undefined,
-        overflow: 'hidden',
-        background: showVideo ? '#000' : undefined,
-        borderRadius: showVideo ? '12px' : undefined,
-        boxShadow: showVideo ? '0 8px 40px rgba(0,0,0,0.6)' : undefined,
-        opacity: showVideo ? 1 : 0.01,
-        pointerEvents: showVideo ? 'auto' : 'none',
-        zIndex: showVideo ? 50 : -1,
+        // Fill the parent container (WalkmanPlayer's video section) in both
+        // states - the parent decides whether it is expanded or collapsed.
+        // Stays mounted either way so audio never stops.
+        width: '100%',
+        height: '100%',
       }}
     >
       <div ref={containerRef} />
-      {showVideo && (
-        <button
-          onClick={() => onToggleVideo && onToggleVideo()}
-          style={{
-            position: 'absolute', top: '8px', right: '8px', zIndex: 2,
-            background: 'rgba(0,0,0,0.65)', color: '#fff', border: 'none',
-            borderRadius: '6px', padding: '6px 10px', cursor: 'pointer',
-            fontSize: '13px',
-          }}
-        >
-          ✕ Hide video
-        </button>
-      )}
     </div>
   );
 });

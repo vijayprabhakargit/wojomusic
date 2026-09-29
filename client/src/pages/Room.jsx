@@ -334,25 +334,10 @@ export default function Room({ socket, onLeave }) {
         style={{ display: 'none' }}
       />
 
-      {/* YouTube IFrame engine - plays audio always; video visible only
-          when the user turns it on (see 13.5). Sits behind the artwork. */}
-      {ytVideoId && (
-        <YtIframePlayer
-          ref={ytRef}
-          videoId={ytVideoId}
-          startAt={ytStartAt}
-                    showVideo={showVideo && !ytError}
-          onReady={() => setYtReady(true)}
-          onStateChange={(s) => setYtState(s)}
-          onEnded={() => {
-            if (canControl) socket.nextTrack();
-          }}
-          onError={(code) => setYtError(code)}
-          onToggleVideo={() => setShowVideo(v => !v)}
-        />
-      )}
+      {/* YouTube IFrame engine is mounted inside WalkmanPlayer's video
+                section (always rendered -> audio never stops, video toggles). */}
 
-      {/* Top Bar */}
+            {/* Top Bar */}
       <div className="glass-panel" style={{
         display: 'flex',
         alignItems: 'center',
@@ -431,10 +416,25 @@ export default function Room({ socket, onLeave }) {
             onPrev={() => socket.prevTrack()}
             onSeek={handleSeek}
                         onAddSource={() => setShowSourceModal(true)}
-            myInfo={myInfo}
-          />
+                                    myInfo={myInfo}
+                                    videoSlot={ytVideoId ? (
+                                      <YtIframePlayer
+                                        ref={ytRef}
+                                        videoId={ytVideoId}
+                                        startAt={ytStartAt}
+                                        onReady={() => setYtReady(true)}
+                                        onStateChange={(s) => setYtState(s)}
+                                        onEnded={() => {
+                                          if (canControl) socket.nextTrack();
+                                        }}
+                                        onError={(code) => setYtError(code)}
+                                      />
+                                    ) : null}
+                                    showVideo={showVideo && !ytError}
+                                  />
 
-          {/* YouTube video toggle - video only; audio never stops */}
+          {/* YouTube video toggle - expands/collapses the video screen inside
+              the walkman deck; audio never stops either way */}
           {isYtMode && !ytError && (
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button

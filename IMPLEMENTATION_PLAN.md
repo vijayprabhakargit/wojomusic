@@ -361,3 +361,10 @@ the codebase for the future Android client. 3-mode toggle: audio-only
 - [x] **13.6** Client builds clean (vite, 54 modules). Local e2e test of a
   real YouTube room still pending user verification (needs browser +
   audio check); server-side syntax checked.
+- [x] **13.7** Inline video UX: the iframe no longer opens as a popup - it
+  is always mounted inside the WalkmanPlayer card. "Show video" expands the
+  deck with a 16:9 video screen above the reels; "Hide video" collapses it
+  back to the usual music-player look (iframe goes 1px inside the
+  overflow-hidden frame, audio keeps playing). YouTube's own controls are
+  disabled (controls=0, disablekb) so all control stays on the walkman
+  transport and nobody desyncs the room via the video.

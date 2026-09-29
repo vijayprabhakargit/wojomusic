@@ -15,7 +15,9 @@ export default function WalkmanPlayer({
   onPrev,
   onSeek,
   onAddSource,
-  myInfo
+  myInfo,
+  videoSlot,   // always-mounted node (e.g. YtIframePlayer) - audio keeps playing even when collapsed
+  showVideo    // false -> collapsed to 1px inside the deck; true -> deck expands with a video screen
 }) {
   return (
     <div className="cassette-frame" style={{
@@ -24,13 +26,43 @@ export default function WalkmanPlayer({
       overflow: 'hidden',
     }}>
       {/* Cassette Deck Visual */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '16px',
-      }}>
-        {/* Tape Reels */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px',
+            }}>
+              {/* Video Screen - expands the deck when shown, collapses to 1px
+                  (inside this overflow:hidden frame) when hidden so the iframe
+                  stays mounted and audio never stops */}
+              {videoSlot && (
+                <div style={{
+                  width: '100%',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  background: '#000',
+                  transition: 'opacity 0.25s ease',
+                  ...(showVideo ? {
+                    position: 'relative',
+                    aspectRatio: '16 / 9',
+                    opacity: 1,
+                    pointerEvents: 'auto',
+                    border: '1px solid rgba(192,160,96,0.35)',
+                  } : {
+                    position: 'absolute',
+                    width: '1px',
+                    height: '1px',
+                    bottom: 0,
+                    left: 0,
+                    opacity: 0.01,
+                    pointerEvents: 'none',
+                  }),
+                }}>
+                  {videoSlot}
+                </div>
+              )}
+
+              {/* Tape Reels */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
