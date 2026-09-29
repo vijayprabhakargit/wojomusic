@@ -49,7 +49,10 @@ app.get('/api/yt-debug', async (req, res) => {
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
       return res.status(400).json({ error: 'Invalid videoId' });
     }
-    const result = await youtube.diagnose(videoId);
+    const singleClient = String(req.query.client || '').trim();
+    const result = singleClient
+      ? await youtube.diagnose(videoId, { clients: [singleClient] })
+      : await youtube.diagnose(videoId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

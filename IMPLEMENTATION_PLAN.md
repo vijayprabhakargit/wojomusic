@@ -297,3 +297,25 @@ production output for any video (e.g. xvT1jH8B9AM).
 - [ ] **10.4** Commit + push (Render auto-deploys), then the user calls
   the endpoint with their failing URL and shares the JSON so we can
   pinpoint where the real path diverges from diagnose().
+## Section 11 - Production bot-check: root cause and fix path
+
+Root cause (verified via /api/yt-debug-info on production): Render's shared
+datacenter egress IP is flagged by YouTube for ANONYMOUS sessions - all
+clients (ANDROID_VR, IOS, WEB, YTMUSIC) return LOGIN_REQUIRED, freshly
+rotated identities are re-flagged within seconds, and the token pipeline
+itself is healthy. Identity rotation cannot fix this; our retry storms
+(~40 player calls per failed user action) escalate the flag. Full findings
+in YOUTUBE_INNERTUBE_RESEARCH.md, section "2026-09 Session".
+
+- [x] **11.1** (result: WEB_EMBEDDED/TV_EMBEDDED throw "This video is unavailable" even for embeddable videos from a residential IP - dead end, chain unchanged) Diagnose matrix gains WEB_EMBEDDED/TV_EMBEDDED (yt-dlp: no
+  PO token required for web_embedded); /api/yt-debug accepts `&client=`
+  to probe a single client; MEASURED in production before any chain change.
+- [ ] **11.2** Cookie login: YT_COOKIE env (throwaway Google account) ->
+  Innertube.create({ cookie }); youtubei.js HTTPClient natively supports
+  cookie + SAPISID auth. Cookie must be PRESERVED across identity
+  rotations (rotation only re-mints visitorData).
+- [ ] **11.3** Circuit breaker: global LOGIN_REQUIRED cooldown so requests
+  fail fast with a clear error instead of escalating the IP flag.
+- [ ] **11.4** Only if 11.1 and 11.2 fail: hand-rolled
+  MEDIA_CONNECT_FRONTEND (client 95) raw /player fetch probe
+  (youtubei.js 18.1.0 cannot send it - context is force-overwritten).

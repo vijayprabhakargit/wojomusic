@@ -27,6 +27,12 @@ import path from 'path';
 
 const require = createRequire(import.meta.url);
 const poToken = require('./poToken.js');
+
+// Optional logged-in cookie (YT_COOKIE env). A logged-in session bypasses
+// the anonymous-session bot check that flags datacenter IPs. See
+// YOUTUBE_INNERTUBE_RESEARCH.md (2026-09 Session). Kept module-level so
+// identity rotation re-mints visitorData but PRESERVES the cookie.
+const COOKIE = process.env.YT_COOKIE || '';
 const { generatePoToken, mintSessionToken } = poToken;
 
 // Provide the JS interpreter youtubei.js needs to decipher signed URLs.
@@ -96,6 +102,11 @@ let innertube = null;
 let innertubePromise = null;
 let identity = null; // { visitorData, sessionToken, createdAt }
 
+// Circuit breaker: when YouTube bot-checks us, STOP hammering. A single
+// failed walk fires 8-16 player calls; repeated storms deepen the IP flag.
+const BOTCHECK_BREAKER_MS = 5 * 60 * 1000;
+let botCheckUntil = 0;
+
 // Cooldown so we do not rotation-storm when YouTube keeps flagging us.
 const ROTATE_COOLDOWN_MS = 10 * 60 * 1000;
 let lastRotationAt = 0;
@@ -113,6 +124,7 @@ async function createInnertube(idn) {
   };
   if (idn && idn.visitorData) opts.visitor_data = idn.visitorData;
   if (idn && idn.sessionToken) opts.po_token = idn.sessionToken;
+  if (COOKIE) opts.cookie = COOKIE;
   return Innertube.create(opts);
 }
 
@@ -248,6 +260,11 @@ const HARD_BLOCK = new Set(['LOGIN_REQUIRED', 'UNPLAYABLE', 'ERROR']);
  * client", or returns a value to stop with success.
  */
 async function forEachClient(videoId, handler, { allowRotate = true } = {}) {
+  if (Date.now() < botCheckUntil) {
+    throw new Error('YouTube bot-check breaker active: retry in ' +
+      Math.ceil((botCheckUntil - Date.now()) / 60000) + ' min' +
+      (COOKIE ? '' : ' (or set YT_COOKIE to use a logged-in session)'));
+  }
   const yt = await getInnertube();
   let lastError = null;
   const seen = [];
@@ -280,6 +297,12 @@ async function forEachClient(videoId, handler, { allowRotate = true } = {}) {
   }
 
   dbg('all clients failed ->', seen.join(', '));
+
+  if (sawBotCheck) {
+    botCheckUntil = Date.now() + BOTCHECK_BREAKER_MS;
+    console.warn('[~] YouTube bot check: breaker engaged for ' +
+      (BOTCHECK_BREAKER_MS / 60000) + ' min' + (COOKIE ? '' : ' (no YT_COOKIE set)'));
+  }
 
   // Bot check fired: rotate identity once and retry the whole walk.
   if (sawBotCheck && allowRotate) {
@@ -339,6 +362,7 @@ export async function getStreamUrl(videoId) {
 export function identityInfo() {
   if (!identity) return null;
   return {
+    cookieAuth: !!COOKIE,
     visitorDataPreview: identity.visitorData.slice(0, 24) + '...',
     hasSessionToken: !!identity.sessionToken,
     sessionTokenLength: identity.sessionToken ? identity.sessionToken.length : 0,
@@ -366,9 +390,12 @@ export async function warmUp() {
  * Diagnostic matrix (8.6): probes clients with/without tokens, reports
  * egress IP plus identity state. Used by /api/yt-debug.
  */
-export async function diagnose(videoId) {
+export async function diagnose(videoId, opts) {
   const yt = await getInnertube();
-  const CLIENTS = ['WEB', 'YTMUSIC', 'TV', 'ANDROID', 'ANDROID_VR', 'IOS'];
+  const DEFAULT_CLIENTS = ['WEB', 'YTMUSIC', 'TV', 'ANDROID', 'ANDROID_VR', 'IOS', 'WEB_EMBEDDED', 'TV_EMBEDDED'];
+  const CLIENTS = opts && Array.isArray(opts.clients) && opts.clients.length
+    ? opts.clients
+    : DEFAULT_CLIENTS;
 
   let egressIp = null;
   try {

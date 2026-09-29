@@ -295,3 +295,67 @@ Steps:
 7. **Handle signatureCipher** when streaming URLs come with `s` parameter instead of direct `url`
 8. **Multiple fallback clients** are essential for reliability
 9. **Retry with exponential backoff** across client fallbacks
+---
+
+## 2026-09 Session: Re-check against BravePipe/NewPipe, InnerTubeX, yt-dlp PO Token Guide
+
+Sources reviewed: BravePipe (NewPipe fork) README; MetrolistGroup/innertubex
+README; yt-dlp "PO Token Guide" wiki (Extractors context).
+
+### What these projects actually do (and why it differs from us)
+
+- **BravePipe / NewPipe (Android app):** parses YouTube via NewPipeExtractor
+  using ANDROID/IOS InnerTube clients. It never faces the datacenter bot
+  check because requests come from USERS' PHONES (residential/mobile IPs).
+  Not a solution for us, but confirms our ANDROID_VR/IOS-first ordering.
+- **InnerTubeX (Kotlin, Metrolist):** client catalog + ClientFallbackStrategy
+  + ClientHealthMonitor; PO-token minting is host-owned; documents probe
+  clients IOS_MUSIC (26), ANDROID_KIDS (18), ANDROID_PRODUCER (91) and
+  MEDIA_CONNECT_FRONTEND (95), plus TVHTML5_DOWNGRADED. SABR/UMP is where
+  YouTube is heading.
+- **yt-dlp PO Token Guide (server-side ground truth):**
+  - PO-token enforcement TODAY applies to GVS/Subs, NOT the player call.
+  - android_vr: PO token not required (but "made for kids" unavailable).
+  - web_embedded: PO token not required, only embeddable videos.
+  - The "Sign in to confirm you're not a bot" error on servers is an
+    IP-level flag on ANONYMOUS sessions; yt-dlp's answer is logged-in
+    cookies (SAPISID auth), which bypass it.
+  - Invidious ships a trusted-session-generator for the same reason.
+
+### Production evidence (xvT1jH8B9AM via /api/yt-debug-info)
+
+- ALL clients LOGIN_REQUIRED in production: ANDROID_VR, IOS (no token) and
+  WEB, YTMUSIC WITH fresh content tokens (len=116 minted fine).
+- A freshly rotated identity (age ~23 s, new visitorData + 796-char token)
+  was flagged instantly -> rotation cannot clear an IP-level flag.
+- Earlier the same deployment/e IP was all-OK -> the flag appeared after
+  repeated probing; Render egress 74.220.48.71 is a shared datacenter IP.
+
+### Corrected model
+
+1. Our tokens/session pipeline is healthy; the flag is on the IP for
+   anonymous (cookie-less) sessions.
+2. Rotation storms make it worse: each failed user action currently fires
+   ~40 player calls (2 attempts x 4 clients x 2 phases + rotation retry),
+   which escalates YouTube's abuse countermeasures.
+3. Un-tested bypass candidates, cheapest first:
+   a) WEB_EMBEDDED (no PO token needed; video must be embeddable) - in
+      youtubei.js SUPPORTED_CLIENTS, zero hacks.
+   b) Logged-in cookie session (YT_COOKIE env; youtubei.js HTTPClient
+      natively supports cookie + SAPISID auth; rotation must PRESERVE the
+      cookie and only rotate visitorData).
+   c) MEDIA_CONNECT_FRONTEND (95) raw /player call - youtubei.js 18.1.0
+      CANNOT send it (context is force-overwritten; #adjustContext only
+      accepts whitelisted short names), would need a hand-rolled fetch
+      call; MCF usually returns unciphered URLs.
+4. Stop hammering: on LOGIN_REQUIRED, add a global circuit-breaker
+   cooldown instead of retry storms.
+
+### Fix plan (in order)
+
+1. WEB_EMBEDDED (+TV_EMBEDDED) into the diagnose matrix + `&client=` probe
+   param on /api/yt-debug; no chain change until measured in production.
+2. Cookie login: YT_COOKIE env -> Innertube.create({ cookie }); keep cookie
+   across identity rotations; document getting a throwaway account cookie.
+3. Circuit breaker on LOGIN_REQUIRED (fail fast, no retry storm).
+4. MCF raw probe only if (1) and (2) both fail.
