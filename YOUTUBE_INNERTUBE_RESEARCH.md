@@ -359,3 +359,23 @@ README; yt-dlp "PO Token Guide" wiki (Extractors context).
    across identity rotations; document getting a throwaway account cookie.
 3. Circuit breaker on LOGIN_REQUIRED (fail fast, no retry storm).
 4. MCF raw probe only if (1) and (2) both fail.
+
+## 2026-09 Final synthesis: app model mapped to Wojo (music-first)
+
+All five repos (BravePipe, innertubex, Metrolist, Echo, Vivi) are CLIENT
+apps on user devices. Catalog = YouTube Music endpoints. Playback = music
+clients via innertubex + Zemer-style layered ciphers. BotGuard/PoToken
+minting is ON DEVICE, IP = user residential IP - that is why bot checks
+never bite them; same code on a datacenter IP gets flagged like ours.
+
+1:1 mapping for a server-backed WEBSITE:
+1. Catalog: YTM search via youtubei.js music API (done: searchMusic +
+   GET /api/music-search; type:songs filter broken in 18.1.0, we filter
+   song rows client-side; MusicResponsiveListItem thumbnails empty, TBD).
+2. Playback: existing chain + content PoTokens; YTMUSIC-first for music
+   IDs (plan 12.4).
+3. Attestation (decisive piece): mirror on-device BotGuard with
+   in-BROWSER BotGuard - users mint visitorData + per-video PoTokens in
+   their browsers and hand them to the server (Piped pattern). Server IP
+   flag stops mattering since attestation binds to the user session.
+4. Keep: YT_COOKIE fallback; circuit breaker to stop flag escalation.

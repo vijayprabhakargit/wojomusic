@@ -358,6 +358,48 @@ export async function getStreamUrl(videoId) {
   });
 }
 
+/**
+ * Search the YouTube Music catalog (the same catalog Metrolist/Echo/Vivi
+ * serve). Returns song-first results.
+ * @returns {Promise<Array<{videoId,title,artist,duration,thumbnail}>>}
+ */
+export async function searchMusic(query) {
+  const yt = await getInnertube();
+  // NOTE: the { type: 'songs' } filter returns bogus 'No results' in
+  // youtubei.js 18.1.0, so we search unfiltered and keep only song/video
+  // rows (11-char ids) ourselves.
+  const search = await yt.music.search(query);
+  const sections = Array.isArray(search && search.contents) ? search.contents : [];
+  const items = sections
+    .flatMap((sec) => Array.isArray(sec && sec.contents) ? sec.contents : [sec])
+    .filter((it) => it && it.type === 'MusicResponsiveListItem' &&
+      /^[a-zA-Z0-9_-]{11}$/.test(String(it.id || '')));
+  const out = [];
+  for (const it of items) {
+    if (!it || typeof it !== 'object') continue;
+    const id = it.id || it.video_id || null;
+    const title = (typeof it.title === 'string' && it.title) ||
+      (it.title && it.title.text) || null;
+    if (!id || !title) continue;
+    const artistList = it.authors || it.artists || [];
+    const artist = Array.isArray(artistList)
+      ? artistList.map((a) => (a && ((a.name && a.name.text) || a.name || (a.text && a.text.text) || a.text)) || '')
+          .filter(Boolean).join(', ')
+      : (it.author || '');
+    const dur = it.duration ? (typeof it.duration === 'string' ? it.duration : (it.duration.text || '')) : '';
+    const thumbs = it.thumbnail || it.thumbnails || [];
+    out.push({
+      videoId: id,
+      title: title,
+      artist: artist || '',
+      duration: dur || null,
+      thumbnail: Array.isArray(thumbs) && thumbs.length ? thumbs[0].url : '',
+    });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
 /** Current session identity info (for diagnostics; token redacted). */
 export function identityInfo() {
   if (!identity) return null;
@@ -445,4 +487,4 @@ export async function diagnose(videoId, opts) {
   };
 }
 
-export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo, getDebugLog, clearDebugLog };
+export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo, getDebugLog, clearDebugLog, searchMusic };

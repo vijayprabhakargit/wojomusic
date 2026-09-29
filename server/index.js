@@ -117,6 +117,21 @@ app.get('/api/yt-debug-info', async (req, res) => {
   res.json(out);
 });
 
+// Music catalog search (YouTube Music). Primary UX: search a song, get
+// YTM track results (like Metrolist/Echo/Vivi), then play via the
+// existing /api/youtube-audio proxy.
+app.get('/api/music-search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'Missing q' });
+  try {
+    const youtube = await import('./youtube.mjs');
+    res.json({ query: q, results: await youtube.searchMusic(q) });
+  } catch (err) {
+    console.error('Music search failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve client build in production
 const clientDist = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientDist)) {

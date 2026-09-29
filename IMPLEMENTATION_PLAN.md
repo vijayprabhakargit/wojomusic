@@ -319,3 +319,17 @@ in YOUTUBE_INNERTUBE_RESEARCH.md, section "2026-09 Session".
 - [ ] **11.4** Only if 11.1 and 11.2 fail: hand-rolled
   MEDIA_CONNECT_FRONTEND (client 95) raw /player fetch probe
   (youtubei.js 18.1.0 cannot send it - context is force-overwritten).
+
+## Section 12 - Music-first playback (app-model parity)
+
+Their playback works because it is ON-DEVICE (user IP + on-device
+BotGuard), not because of a magic client. Web parity = YTM catalog +
+music clients + attestation minted in the USER browser.
+
+- [x] **12.1** Analysis complete (research doc updated).
+- [x] **12.2** YTM catalog search: searchMusic + GET /api/music-search
+  (verified locally: 14 song rows; YTM type:songs filter broken in
+  18.1.0, client-side row filter used; thumbnails TBD).
+- [ ] **12.3** Client-side PoToken relay (browser mints, server uses).
+- [ ] **12.4** YTMUSIC-first ordering for music track IDs.
+- [ ] **12.5** Production verification end-to-end (search -> play).
