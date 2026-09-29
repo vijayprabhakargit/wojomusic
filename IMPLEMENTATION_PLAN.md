@@ -270,3 +270,30 @@ and the yt-dlp PO Token Guide):**
   `server/tests/test_diag.mjs` and `server/tests/youtube.test.mjs`.
   Verified locally: full chain getInfo -> getStreamUrl -> CDN 206; matrix
   15/15 pass; proxy tests 2/2 pass against a running server.
+
+## Section 10 - Production debug: expose the REAL Innertube path
+
+Context: /api/yt-debug (diagnose()) probes getBasicInfo per client and
+reported all-OK in production, yet the socket path still throws
+"Sign in to confirm you're not a bot". We need to run the EXACT
+production code path (getInfo / getStreamUrl fallback chain) against a
+user-supplied URL and capture every step, so the user can share real
+production output for any video (e.g. xvT1jH8B9AM).
+
+- [x] **10.1** Debug log ring buffer in `server/youtube.mjs`: `dbg()`
+  appends timestamped lines to an in-memory array (cap 300) in addition
+  to stdout; export `getDebugLog()` / `clearDebugLog()`.
+- [x] **10.2** New endpoint `GET /api/yt-debug-info` in `server/index.js`
+  (same optional `YT_DEBUG_KEY` guard as /api/yt-debug): accepts
+  `url` (full YouTube URL) or `videoId`; extracts the id the same way
+  the socket path does (`fileHandler._extractVideoId`); then runs the
+  REAL production path - `fileHandler.getYoutubeInfo(url)` (the getInfo
+  fallback chain) and, when `stream=1`, `getStreamUrl` too - capturing
+  per-phase timing, the thrown error (message + name), identity info,
+  and the debug log buffer. Returns JSON.
+- [x] **10.3** Local verification: run the server locally, hit
+  `/api/yt-debug-info?url=https://www.youtube.com/watch?v=xvT1jH8B9AM`
+  and confirm per-client trace + sane result.
+- [ ] **10.4** Commit + push (Render auto-deploys), then the user calls
+  the endpoint with their failing URL and shares the JSON so we can
+  pinpoint where the real path diverges from diagnose().

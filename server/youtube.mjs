@@ -36,8 +36,27 @@ Platform.shim.eval = async (data) => {
 
 // Verbose diagnostics. Enable with YT_DEBUG=1 in the environment.
 const DEBUG = /^(1|true|yes)$/i.test(process.env.YT_DEBUG || '');
+// Ring buffer of recent debug lines so /api/yt-debug-info can return the
+// exact trace of a real request (Render stdout is hard to correlate).
+const debugLogBuf = [];
+const DEBUG_LOG_CAP = 300;
 function dbg(...args) {
+  const line = new Date().toISOString() + ' ' + args.map(function (a) {
+    return typeof a === 'string' ? a : JSON.stringify(a);
+  }).join(' ');
+  debugLogBuf.push(line);
+  if (debugLogBuf.length > DEBUG_LOG_CAP) debugLogBuf.shift();
   if (DEBUG) console.log('[yt:dbg]', ...args);
+}
+
+/** Return a copy of the most recent debug lines. */
+export function getDebugLog() {
+  return debugLogBuf.slice();
+}
+
+/** Drop all buffered debug lines. */
+export function clearDebugLog() {
+  debugLogBuf.length = 0;
 }
 
 // Preferred client order. ANDROID_VR/IOS return direct (un-ciphered)
@@ -399,4 +418,4 @@ export async function diagnose(videoId) {
   };
 }
 
-export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo };
+export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo, getDebugLog, clearDebugLog };

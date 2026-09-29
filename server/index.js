@@ -56,6 +56,64 @@ app.get('/api/yt-debug', async (req, res) => {
   }
 });
 
+// Production debug: run the REAL YouTube path (the same getYoutubeInfo /
+// getStreamUrl calls the socket flow makes) against a user-supplied URL or
+// videoId and return the full trace. Complements /api/yt-debug, whose
+// diagnose() only probes raw getBasicInfo and does not exercise the
+// fallback chain, format selection or decipher step that production uses.
+// Usage: /api/yt-debug-info?url=<full YouTube URL>[&stream=1]
+app.get('/api/yt-debug-info', async (req, res) => {
+  const key = process.env.YT_DEBUG_KEY;
+  if (key && req.query.key !== key) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const raw = String(req.query.url || req.query.videoId || '').trim();
+  if (!raw) return res.status(400).json({ error: 'Missing url or videoId' });
+  const videoId = fileHandler._extractVideoId(raw);
+  if (!videoId) return res.status(400).json({ error: 'Invalid YouTube URL' });
+
+  const youtube = await import('./youtube.mjs');
+  youtube.clearDebugLog();
+  const out = { input: raw, videoId: videoId, startedAt: new Date().toISOString() };
+
+  // Phase 1: metadata - the exact call the "add to queue" socket flow makes
+  let t0 = Date.now();
+  try {
+    const info = await fileHandler.getYoutubeInfo(raw);
+    out.infoResult = { ok: true, elapsedMs: Date.now() - t0, info: info };
+  } catch (err) {
+    out.infoResult = {
+      ok: false, elapsedMs: Date.now() - t0,
+      errorName: err && err.name, errorMessage: err && err.message,
+      stack: err && err.stack,
+    };
+  }
+
+  // Phase 2 (opt-in, stream=1): resolve a real CDN stream URL
+  if (/^(1|true|yes)$/i.test(String(req.query.stream || ''))) {
+    t0 = Date.now();
+    try {
+      const stream = await fileHandler.getYouTubeStreamUrl(videoId);
+      out.streamResult = {
+        ok: true, elapsedMs: Date.now() - t0,
+        mimeType: stream.mimeType, contentLength: stream.contentLength,
+        urlHost: stream.url ? new URL(stream.url).host : null,
+        hasPot: stream.url ? stream.url.includes('pot=') : null,
+      };
+    } catch (err) {
+      out.streamResult = {
+        ok: false, elapsedMs: Date.now() - t0,
+        errorName: err && err.name, errorMessage: err && err.message,
+        stack: err && err.stack,
+      };
+    }
+  }
+
+  out.identity = youtube.identityInfo();
+  out.debugLog = youtube.getDebugLog();
+  res.json(out);
+});
+
 // Serve client build in production
 const clientDist = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientDist)) {
