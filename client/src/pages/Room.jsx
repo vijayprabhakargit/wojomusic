@@ -1,13 +1,37 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import WalkmanPlayer from '../components/WalkmanPlayer';
+import YtIframePlayer from '../components/YtIframePlayer';
 import SourceSelector from '../components/SourceSelector';
 import QueuePanel from '../components/QueuePanel';
 import Chat from '../components/Chat';
 import Participants from '../components/Participants';
 
+// Extract an 11-char video id from any common YouTube URL shape
+const extractYtId = (url) => {
+  if (!url) return null;
+  const m = String(url).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+};
+
+// YouTube songs with a resolvable videoId are played via the IFrame Player
+// API instead of the <audio> element (no server download / bot-check).
+const resolveYtVideoId = (song) => {
+  if (!song || song.source !== 'youtube') return null;
+  return song.videoId || extractYtId(song.url);
+};
+
 export default function Room({ socket, onLeave }) {
   const [activePanel, setActivePanel] = useState('queue'); // 'queue' | 'chat' | 'participants'
   const [showSourceModal, setShowSourceModal] = useState(false);
+
+  // ---- YouTube IFrame engine state ----
+  const ytRef = useRef(null); // imperative handle: play/pause/seek/getPosition/getDuration
+  const [ytReady, setYtReady] = useState(false);       // YT.Player created & usable
+  const [ytState, setYtState] = useState(-1);          // -1 unstarted, 1 playing, 2 paused, 3 buffering, 0 ended
+  const [ytError, setYtError] = useState(null);        // iframe player error code (101/150 = embed-restricted)
+  const [showVideo, setShowVideo] = useState(false);   // per-user video on/off (audio never stops)
+  const [needsTapToJoin, setNeedsTapToJoin] = useState(false); // autoplay blocked -> user must gesture
+
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const syncIntervalRef = useRef(null);
@@ -24,8 +48,30 @@ export default function Room({ socket, onLeave }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
+    const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
   const currentSong = playerState?.currentSong;
+
+    // Active playback engine: 'yt' (IFrame API) or 'audio' (local/gdrive/legacy)
+  const ytVideoId = resolveYtVideoId(currentSong);
+  const isYtMode = Boolean(ytVideoId);
+
+  // Capture the start position exactly when the YT song changes (render-time,
+  // so <YtIframePlayer> loads once with the right startSeconds instead of
+  // reloading when later position updates arrive).
+  const ytStartAtRef = useRef(0);
+  const prevYtIdRef = useRef(null);
+  if (ytVideoId !== prevYtIdRef.current) {
+    prevYtIdRef.current = ytVideoId;
+    ytStartAtRef.current = playerState?.position || 0;
+  }
+  const ytStartAt = ytStartAtRef.current;
+
+  // Reset per-video YT flags when the song changes
+  useEffect(() => {
+    setYtError(null);
+    setYtState(-1);
+    setNeedsTapToJoin(false);
+  }, [ytVideoId]);
 
   // Determine if I can control playback
   const canControl = myInfo && (myInfo.role === 'admin' || myInfo.role === 'moderator');
@@ -41,19 +87,44 @@ export default function Room({ socket, onLeave }) {
 
   // ---- AUDIO SYNC LOGIC ----
 
-  // When player state changes from server, react accordingly
+    // When player state changes from server, react accordingly
   useEffect(() => {
-    if (!audioRef.current || !playerState) return;
+    if (!playerState) return;
 
-    const audio = audioRef.current;
     const { isPlaying, position, currentSong: serverSong } = playerState;
 
     if (!serverSong) {
-      audio.pause();
-      audio.src = '';
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
       setAudioReady(false);
       return;
     }
+
+    const ytId = resolveYtVideoId(serverSong);
+
+    if (ytId) {
+      // ---- YOUTUBE IFRAME ENGINE ----
+      // Loading happens via the videoId/startAt props on <YtIframePlayer>.
+      // play/pause only after the player is ready; drift-correct above 2s.
+      if (ytReady && ytRef.current) {
+        if (isPlaying) {
+          ytRef.current.play();
+        } else {
+          ytRef.current.pause();
+        }
+        const t = ytRef.current.getPosition();
+        if (t > 0 && Math.abs(t - (position || 0)) > 2) {
+          ytRef.current.seek(position || 0);
+        }
+      }
+      return;
+    }
+
+    // ---- <audio> ENGINE (local / gdrive / legacy youtube) ----
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
 
     // Build the audio source URL
     const songUrl = getSongUrl(serverSong);
@@ -81,15 +152,22 @@ export default function Room({ socket, onLeave }) {
         audio.currentTime = position;
       }
     }
-  }, [playerState?.currentSong?.id, playerState?.isPlaying]);
+  }, [playerState?.currentSong?.id, playerState?.isPlaying, ytReady, ytVideoId, showVideo]);
 
-  // Sync position when paused
+    // Sync position when paused
   useEffect(() => {
-    if (!audioRef.current || !playerState) return;
-    if (!playerState.isPlaying && playerState.position !== undefined) {
+    if (!playerState) return;
+    if (playerState.isPlaying || playerState.position === undefined) return;
+
+    if (isYtMode && ytReady && ytRef.current) {
+      const t = ytRef.current.getPosition();
+      if (Math.abs(t - playerState.position) > 1) {
+        ytRef.current.seek(playerState.position);
+      }
+    } else if (audioRef.current) {
       audioRef.current.currentTime = playerState.position;
     }
-  }, [playerState?.position, playerState?.isPlaying]);
+  }, [playerState?.position, playerState?.isPlaying, isYtMode, ytReady, ytVideoId]);
 
   // Report progress periodically (only if I'm a controller)
   useEffect(() => {
@@ -101,8 +179,16 @@ export default function Room({ socket, onLeave }) {
       return;
     }
 
-    progressIntervalRef.current = setInterval(() => {
-      if (audioRef.current && !audioRef.current.paused) {
+        progressIntervalRef.current = setInterval(() => {
+      if (isYtMode) {
+        // 1 = playing, 3 = buffering (still reports time)
+        const s = ytRef.current?.getPlayerState?.();
+        if (s === 1 || s === 3) {
+          const t = ytRef.current.getPosition();
+          socket.reportProgress(t);
+          setLocalPosition(t);
+        }
+      } else if (audioRef.current && !audioRef.current.paused) {
         socket.reportProgress(audioRef.current.currentTime);
         setLocalPosition(audioRef.current.currentTime);
       }
@@ -114,7 +200,7 @@ export default function Room({ socket, onLeave }) {
         progressIntervalRef.current = null;
       }
     };
-  }, [canControl, playerState?.isPlaying, playerState?.currentSong?.id]);
+  }, [canControl, playerState?.isPlaying, playerState?.currentSong?.id, isYtMode]);
 
   // Regular sync check for non-controllers
   useEffect(() => {
@@ -126,8 +212,13 @@ export default function Room({ socket, onLeave }) {
       return;
     }
 
-    syncIntervalRef.current = setInterval(() => {
-      if (audioRef.current && !audioRef.current.paused) {
+        syncIntervalRef.current = setInterval(() => {
+      if (isYtMode) {
+        const s = ytRef.current?.getPlayerState?.();
+        if (s === 1 || s === 3) {
+          socket.syncPosition(ytRef.current.getPosition(), Date.now());
+        }
+      } else if (audioRef.current && !audioRef.current.paused) {
         socket.syncPosition(audioRef.current.currentTime, Date.now());
       }
     }, 5000);
@@ -138,20 +229,25 @@ export default function Room({ socket, onLeave }) {
         syncIntervalRef.current = null;
       }
     };
-  }, [playerState?.isPlaying, canControl, playerState?.currentSong?.id]);
+  }, [playerState?.isPlaying, canControl, playerState?.currentSong?.id, isYtMode]);
 
-  // Update local position display
+    // Update local position display
   useEffect(() => {
-    if (!audioRef.current || !playerState?.isPlaying) return;
-    
+    if (!playerState?.isPlaying) return;
+
     const interval = setInterval(() => {
-      if (audioRef.current && !audioRef.current.paused) {
+      if (isYtMode) {
+        const s = ytRef.current?.getPlayerState?.();
+        if (s === 1 || s === 3) {
+          setLocalPosition(ytRef.current.getPosition());
+        }
+      } else if (audioRef.current && !audioRef.current.paused) {
         setLocalPosition(audioRef.current.currentTime);
       }
     }, 250);
 
     return () => clearInterval(interval);
-  }, [playerState?.isPlaying, playerState?.currentSong?.id]);
+  }, [playerState?.isPlaying, playerState?.currentSong?.id, isYtMode]);
 
   // Listen for seek/position changes
   useEffect(() => {
@@ -180,12 +276,16 @@ export default function Room({ socket, onLeave }) {
     return null;
   };
 
-  const handleSeek = (e) => {
-    if (!canControl || !audioRef.current) return;
+    const handleSeek = (e) => {
+    if (!canControl) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
-    const newTime = pos * (audioRef.current.duration || 0);
-    audioRef.current.currentTime = newTime;
+    const newTime = pos * getDuration();
+    if (isYtMode && ytRef.current) {
+      ytRef.current.seek(newTime);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
     setLocalPosition(newTime);
     socket.seek(newTime);
   };
@@ -197,7 +297,11 @@ export default function Room({ socket, onLeave }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getDuration = () => {
+    const getDuration = () => {
+    if (isYtMode && ytRef.current) {
+      const d = ytRef.current.getDuration();
+      return d && !isNaN(d) ? d : 0;
+    }
     if (!audioRef.current || !audioRef.current.duration || isNaN(audioRef.current.duration)) return 0;
     return audioRef.current.duration;
   };
@@ -218,7 +322,7 @@ export default function Room({ socket, onLeave }) {
           maxWidth: '1400px',
           margin: '0 auto',
         }}>
-      {/* Hidden Audio Element */}
+            {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
         preload="auto"
@@ -229,6 +333,24 @@ export default function Room({ socket, onLeave }) {
         onError={(e) => console.error('Audio error:', e.target.error)}
         style={{ display: 'none' }}
       />
+
+      {/* YouTube IFrame engine - plays audio always; video visible only
+          when the user turns it on (see 13.5). Sits behind the artwork. */}
+      {ytVideoId && (
+        <YtIframePlayer
+          ref={ytRef}
+          videoId={ytVideoId}
+          startAt={ytStartAt}
+                    showVideo={showVideo && !ytError}
+          onReady={() => setYtReady(true)}
+          onStateChange={(s) => setYtState(s)}
+          onEnded={() => {
+            if (canControl) socket.nextTrack();
+          }}
+          onError={(code) => setYtError(code)}
+          onToggleVideo={() => setShowVideo(v => !v)}
+        />
+      )}
 
       {/* Top Bar */}
       <div className="glass-panel" style={{
@@ -308,9 +430,63 @@ export default function Room({ socket, onLeave }) {
             onNext={() => socket.nextTrack()}
             onPrev={() => socket.prevTrack()}
             onSeek={handleSeek}
-            onAddSource={() => setShowSourceModal(true)}
+                        onAddSource={() => setShowSourceModal(true)}
             myInfo={myInfo}
           />
+
+          {/* YouTube video toggle - video only; audio never stops */}
+          {isYtMode && !ytError && (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                className="walkman-btn"
+                onClick={() => setShowVideo(v => !v)}
+                style={{ padding: '8px 14px', fontSize: '13px' }}
+              >
+                {showVideo ? '🎬 Hide video' : '🎬 Show video'}
+              </button>
+            </div>
+          )}
+
+          {/* YouTube status banners: loading / tap-to-join / embed-restricted */}
+          {isYtMode && ytError !== null && (
+            <div className="glass-panel" style={{
+              padding: '10px 14px', fontSize: '13px',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              flexWrap: 'wrap',
+              color: 'var(--text-secondary)',
+            }}>
+              <span>
+                ⚠ YouTube won't let this video play inside other websites
+                (error {ytError}).
+              </span>
+              <a
+                href={`https://www.youtube.com/watch?v=${ytVideoId}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                Watch on YouTube ↗
+              </a>
+            </div>
+          )}
+          {isYtMode && !ytError && playerState?.isPlaying && (
+            !ytReady ? (
+              <div className="glass-panel" style={{ padding: '8px 14px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                ⏳ Loading YouTube player…
+              </div>
+            ) : (ytState === -1 || ytState === 5) && (
+              <button
+                className="walkman-btn primary"
+                onClick={() => {
+                  setNeedsTapToJoin(false);
+                  ytRef.current?.play?.();
+                }}
+                style={{ padding: '10px 16px', fontSize: '14px', fontWeight: 'bold' }}
+              >
+                ▶ Tap to join playback
+              </button>
+            )
+          )}
 
           {/* Source Selector (shown when active) */}
           {showSourceModal && (

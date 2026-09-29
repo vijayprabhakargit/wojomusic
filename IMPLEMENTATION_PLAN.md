@@ -333,3 +333,31 @@ music clients + attestation minted in the USER browser.
 - [ ] **12.3** Client-side PoToken relay (browser mints, server uses).
 - [ ] **12.4** YTMUSIC-first ordering for music track IDs.
 - [ ] **12.5** Production verification end-to-end (search -> play).
+
+## Section 13 - Web client: YouTube IFrame playback engine (replaces server download path)
+
+Decision: web client plays YouTube via the IFrame Player API (known working
+from websites; no bot-check possible). Video hidden by default (audio-only,
+album-art covering it), toggleable per user. Server InnerTube path stays in
+the codebase for the future Android client. 3-mode toggle: audio-only
+(default) / video on / video off - audio never stops, per-user choice.
+
+- [x] **13.1** Server: youtube:add extracts videoId, oEmbed title fallback
+  (server/index.js) + rooms.js addToQueue preserves videoId (was being
+  dropped by the field whitelist - would have broken the iframe entirely).
+- [x] **13.2** YtIframePlayer component: hidden iframe wrapper with
+  play/pause/seek/getPosition/getDuration imperative API, onEnded/onError,
+  video-on/off visibility (client/src/components/YtIframePlayer.jsx).
+- [x] **13.3** Server: playSong() - youtube songs WITH videoId go straight
+  to processSong() (no download, no bot-check); legacy no-videoId items
+  keep the server path as fallback. preFetchSong() skips them.
+- [x] **13.4** Room.jsx: engine branching - youtube+videoId songs use
+  YtIframePlayer, local/gdrive keep the <audio> element; same sync logic
+  (player:progress / drift correction) reused; autoplay-gesture "tap to
+  join" overlay for guests; error 101/150 -> watch-on-YouTube fallback.
+- [x] **13.5** Video toggle UI: Show/Hide video button; iframe overlays the
+  artwork when on (fixed centered 16:9 overlay), hidden 1px behind it when
+  off; hide button on the overlay itself.
+- [x] **13.6** Client builds clean (vite, 54 modules). Local e2e test of a
+  real YouTube room still pending user verification (needs browser +
+  audio check); server-side syntax checked.

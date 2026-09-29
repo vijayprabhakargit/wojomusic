@@ -269,8 +269,23 @@ io.on('connection', (socket) => {
         return callback({ success: false, error: 'Invalid YouTube URL. Example: https://www.youtube.com/watch?v=...' });
       }
 
-      // Fetch video info from YouTube
-      fileHandler.getYoutubeInfo(url.trim())
+            // Extract videoId so clients can play via the YouTube IFrame Player
+      // API (no server-side InnerTube / bot-check involved).
+      const videoId = fileHandler._extractVideoId(url.trim());
+      if (!videoId) {
+        return callback({ success: false, error: 'Could not extract a video ID from that URL' });
+      }
+
+      // Fetch video info from YouTube. The InnerTube path may fail with a bot
+      // check on server IPs, so fall back to the public oEmbed endpoint
+      // (title only, never bot-checked) before giving up.
+      const fetchMeta = fileHandler.getYoutubeInfo(url.trim())
+        .then((info) => ({ title: info.title, duration: info.duration || 0 }))
+        .catch(() => fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((meta) => ({ title: (meta && meta.title) || `YouTube ${videoId}`, duration: 0 })));
+
+      fetchMeta
         .then((info) => {
           // Create a title from video title (truncate long titles)
           const title = info.title.length > 100 ? info.title.slice(0, 97) + '...' : info.title;
@@ -279,6 +294,7 @@ io.on('connection', (socket) => {
             title,
             url: url.trim(),
             source: 'youtube',
+            videoId,
             duration: info.duration,
             addedBy: participant.name,
             addedById: socket.id,
@@ -638,9 +654,14 @@ io.on('connection', (socket) => {
               io.to(roomId).emit('chat:system', `Failed to load "${song.title}" from Google Drive`);
               playNext(roomId);
             });
+        } else if (song.source === 'youtube' && song.videoId) {
+          // Play via the client-side YouTube IFrame Player API: no server-side
+          // InnerTube call, no download, no bot-check. The client uses
+          // song.videoId directly and reports progress like any other source.
+          processSong();
         } else if (song.source === 'youtube' && song.url) {
-                  // Get YouTube streaming URL (proxied via our server)
-                  fileHandler.downloadFromYoutube(song.url, roomId, song.id)
+                      // Legacy fallback: no videoId on the item - try the server path
+                      fileHandler.downloadFromYoutube(song.url, roomId, song.id)
                     .then((result) => {
                       song.filePath = result.filePath;
                       song.publicUrl = result.publicUrl;
@@ -667,8 +688,12 @@ io.on('connection', (socket) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return;
 
-    // If already cached, skip
+        // If already cached, skip
     if (song.filePath && fs.existsSync(song.filePath)) return;
+
+    // IFrame-playable YouTube songs need no server-side prefetch at all -
+    // clients load the video themselves via the YouTube IFrame Player API.
+    if (song.source === 'youtube' && song.videoId) return;
 
     if (song.url && song.url.includes('drive.google.com')) {
           fileHandler.downloadFromGDrive(song.url, roomId, song.id)

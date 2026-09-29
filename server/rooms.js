@@ -115,6 +115,7 @@ class RoomManager {
           addedById: song.addedById || '',
           addedAt: Date.now(),
           source: song.source || 'local', // 'local' | 'gdrive' | 'youtube'
+          videoId: song.videoId || null, // YouTube: lets clients play via the IFrame Player API
           lastPlayedAt: null // tracks recency for LRU eviction
         };
 
