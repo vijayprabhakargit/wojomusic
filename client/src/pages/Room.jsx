@@ -20,6 +20,17 @@ const resolveYtVideoId = (song) => {
   return song.videoId || extractYtId(song.url);
 };
 
+// Compute the LIVE expected position from server state. playerState.position
+// is only stored at play/pause/seek/song-change broadcasts; while playing,
+// extrapolate with (now - lastUpdated) so drift checks compare real time
+// against real time instead of yanking playback back to a stale value.
+const livePosition = (ps) => {
+  if (!ps) return 0;
+  const base = ps.position || 0;
+  if (!ps.isPlaying || !ps.lastUpdated) return base;
+  return base + Math.max(0, (Date.now() - ps.lastUpdated) / 1000);
+};
+
 export default function Room({ socket, onLeave }) {
   const [activePanel, setActivePanel] = useState('queue'); // 'queue' | 'chat' | 'participants'
   const [showSourceModal, setShowSourceModal] = useState(false);
@@ -61,9 +72,9 @@ export default function Room({ socket, onLeave }) {
   const ytStartAtRef = useRef(0);
   const prevYtIdRef = useRef(null);
   if (ytVideoId !== prevYtIdRef.current) {
-    prevYtIdRef.current = ytVideoId;
-    ytStartAtRef.current = playerState?.position || 0;
-  }
+      prevYtIdRef.current = ytVideoId;
+      ytStartAtRef.current = livePosition(playerState);
+    }
   const ytStartAt = ytStartAtRef.current;
 
   // Reset per-video YT flags when the song changes
@@ -105,22 +116,25 @@ export default function Room({ socket, onLeave }) {
     const ytId = resolveYtVideoId(serverSong);
 
     if (ytId) {
-      // ---- YOUTUBE IFRAME ENGINE ----
-      // Loading happens via the videoId/startAt props on <YtIframePlayer>.
-      // play/pause only after the player is ready; drift-correct above 2s.
-      if (ytReady && ytRef.current) {
-        if (isPlaying) {
-          ytRef.current.play();
-        } else {
-          ytRef.current.pause();
+          // ---- YOUTUBE IFRAME ENGINE ----
+          // Loading happens via the videoId/startAt props on <YtIframePlayer>.
+          // play/pause only after the player is ready; drift-correct above 2s
+          // against the LIVE expected position (never against the stale stored
+          // one, which would jump playback back on every effect re-run).
+          if (ytReady && ytRef.current) {
+            if (isPlaying) {
+              ytRef.current.play();
+            } else {
+              ytRef.current.pause();
+            }
+            const t = ytRef.current.getPosition();
+            const expected = livePosition(playerState);
+            if (t > 0 && Math.abs(t - expected) > 2) {
+              ytRef.current.seek(expected);
+            }
+          }
+          return;
         }
-        const t = ytRef.current.getPosition();
-        if (t > 0 && Math.abs(t - (position || 0)) > 2) {
-          ytRef.current.seek(position || 0);
-        }
-      }
-      return;
-    }
 
     // ---- <audio> ENGINE (local / gdrive / legacy youtube) ----
     if (!audioRef.current) return;
@@ -152,7 +166,7 @@ export default function Room({ socket, onLeave }) {
         audio.currentTime = position;
       }
     }
-  }, [playerState?.currentSong?.id, playerState?.isPlaying, ytReady, ytVideoId, showVideo]);
+  }, [playerState?.currentSong?.id, playerState?.isPlaying, ytReady, ytVideoId]);
 
     // Sync position when paused
   useEffect(() => {

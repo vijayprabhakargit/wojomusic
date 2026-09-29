@@ -369,3 +369,4 @@ the codebase for the future Android client. 3-mode toggle: audio-only
   disabled (controls=0, disablekb) so all control stays on the walkman
   transport and nobody desyncs the room via the video.
 - [x] **13.8** UX fix: Show/Hide Video button moved from below the deck into the walkman status row, left of "Add Song" (only rendered when a YouTube video screen is available).
+- [x] **13.9** Sync fix: toggling video no longer drags playback back seconds. Root cause: showVideo was in the main sync effect deps + drift check compared the live iframe position against the STALE stored playerState.position (server only broadcasts state on play/pause/seek/song-change). Now: showVideo removed from deps; drift compares against live expected position (position + (now - lastUpdated)); ytStartAt uses live position too.
