@@ -368,3 +368,4 @@ the codebase for the future Android client. 3-mode toggle: audio-only
   overflow-hidden frame, audio keeps playing). YouTube's own controls are
   disabled (controls=0, disablekb) so all control stays on the walkman
   transport and nobody desyncs the room via the video.
+- [x] **13.8** UX fix: Show/Hide Video button moved from below the deck into the walkman status row, left of "Add Song" (only rendered when a YouTube video screen is available).

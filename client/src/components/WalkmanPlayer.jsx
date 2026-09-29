@@ -16,9 +16,10 @@ export default function WalkmanPlayer({
   onSeek,
   onAddSource,
   myInfo,
-  videoSlot,   // always-mounted node (e.g. YtIframePlayer) - audio keeps playing even when collapsed
-  showVideo    // false -> collapsed to 1px inside the deck; true -> deck expands with a video screen
-}) {
+    videoSlot,   // always-mounted node (e.g. YtIframePlayer) - audio keeps playing even when collapsed
+    showVideo,   // false -> collapsed to 1px inside the deck; true -> deck expands with a video screen
+    onToggleVideo // shown next to Add Song when a YouTube video screen is available
+  }) {
   return (
     <div className="cassette-frame" style={{
       padding: '20px',
@@ -253,13 +254,25 @@ export default function WalkmanPlayer({
             )}
           </div>
 
-          <button
-            className="walkman-btn"
-            onClick={onAddSource}
-            style={{ padding: '6px 12px', fontSize: '13px' }}
-          >
-            📀 Add Song
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {onToggleVideo && (
+                        <button
+                          className="walkman-btn"
+                          onClick={onToggleVideo}
+                          style={{ padding: '6px 12px', fontSize: '13px' }}
+                          title={showVideo ? 'Hide the video screen' : 'Show the video screen (audio keeps playing)'}
+                        >
+                          {showVideo ? '🎬 Hide Video' : '🎬 Show Video'}
+                        </button>
+                      )}
+                      <button
+                        className="walkman-btn"
+                        onClick={onAddSource}
+                        style={{ padding: '6px 12px', fontSize: '13px' }}
+                      >
+                        📀 Add Song
+                      </button>
+                    </div>
         </div>
       </div>
     </div>

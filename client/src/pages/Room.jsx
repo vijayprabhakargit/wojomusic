@@ -431,23 +431,13 @@ export default function Room({ socket, onLeave }) {
                                       />
                                     ) : null}
                                     showVideo={showVideo && !ytError}
-                                  />
+                                                onToggleVideo={isYtMode && !ytError ? () => setShowVideo(v => !v) : undefined}
+                                              />
 
-          {/* YouTube video toggle - expands/collapses the video screen inside
-              the walkman deck; audio never stops either way */}
-          {isYtMode && !ytError && (
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <button
-                className="walkman-btn"
-                onClick={() => setShowVideo(v => !v)}
-                style={{ padding: '8px 14px', fontSize: '13px' }}
-              >
-                {showVideo ? '🎬 Hide video' : '🎬 Show video'}
-              </button>
-            </div>
-          )}
+          {/* YouTube video toggle lives in the walkman's status row
+                        (left of "Add Song") */}
 
-          {/* YouTube status banners: loading / tap-to-join / embed-restricted */}
+                    {/* YouTube status banners: loading / tap-to-join / embed-restricted */}
           {isYtMode && ytError !== null && (
             <div className="glass-panel" style={{
               padding: '10px 14px', fontSize: '13px',
