@@ -159,14 +159,18 @@ export default function Room({ socket, onLeave }) {
       audio.pause();
     }
 
-    // Sync position if drift is too large
-    if (position !== undefined && !audio.paused) {
-      const drift = Math.abs(audio.currentTime - position);
-      if (drift > 2) {
-        audio.currentTime = position;
-      }
-    }
-  }, [playerState?.currentSong?.id, playerState?.isPlaying, ytReady, ytVideoId]);
+    // Sync position if drift is too large - against the LIVE expected
+        // position (position + time since lastUpdated), so that seek broadcasts
+        // and server corrections apply to everyone while playing, and stale
+        // snapshots can never yank playback backwards.
+        if (position !== undefined && !audio.paused) {
+          const expected = livePosition(playerState);
+          const drift = Math.abs(audio.currentTime - expected);
+          if (drift > 2) {
+            audio.currentTime = expected;
+          }
+        }
+      }, [playerState?.currentSong?.id, playerState?.isPlaying, playerState?.position, ytReady, ytVideoId]);
 
     // Sync position when paused
   useEffect(() => {
