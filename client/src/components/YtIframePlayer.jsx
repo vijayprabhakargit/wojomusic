@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 
 /**
  * YtIframePlayer - hidden YouTube IFrame Player API wrapper.
@@ -17,7 +17,7 @@ const YtIframePlayer = forwardRef(function YtIframePlayer(
   const containerRef = useRef(null);
   const playerRef = useRef(null);
   const [apiReady, setApiReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [_failed, setFailed] = useState(false);
   const pendingRef = useRef(null); // { videoId, startSeconds } waiting for the player
 
   // Load the IFrame API script once

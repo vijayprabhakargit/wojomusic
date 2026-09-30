@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 export default function QueuePanel({
   queue = [],
   currentIndex = -1,
-  myInfo,
+  _myInfo,
   onRemove,
   onReorder,
   onPlayFromQueue,
@@ -18,7 +18,7 @@ export default function QueuePanel({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e, _index) => {
     if (!canControl) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -68,7 +68,7 @@ export default function QueuePanel({
             {(() => {
               const diskCount = queue.filter(s => s.source === "local" || s.source === "gdrive").length;
               const ytCount = queue.filter(s => s.source === "youtube").length;
-              const total = queue.length;
+              const _total = queue.length;
               return diskCount + "/20" + (ytCount > 0 ? " +" + ytCount + " stream" : "");
             })()}
           </span>
@@ -107,7 +107,7 @@ export default function QueuePanel({
         ) : (
           queue.map((song, index) => {
             const isPlaying = index === currentIndex;
-            const isReady = song.isReady || song.filePath;
+            const _isReady = song.isReady || song.filePath;
             const isDownloading = song.isDownloading;
             const isFailed = song.downloadFailed;
 

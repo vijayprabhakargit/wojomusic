@@ -12,7 +12,7 @@ export function useSocket(roomId = null) {
   const [chatMessages, setChatMessages] = useState([]);
   const [myInfo, setMyInfo] = useState(null);
   const [roomIdState, setRoomIdState] = useState(roomId);
-  const listenersRef = useRef(new Map());
+  const _listenersRef = useRef(new Map());
 
   // Initialize socket connection
   useEffect(() => {

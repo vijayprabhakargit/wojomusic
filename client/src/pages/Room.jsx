@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import WalkmanPlayer from '../components/WalkmanPlayer';
 import YtIframePlayer from '../components/YtIframePlayer';
 import SourceSelector from '../components/SourceSelector';
@@ -41,13 +41,13 @@ export default function Room({ socket, onLeave }) {
   const [ytState, setYtState] = useState(-1);          // -1 unstarted, 1 playing, 2 paused, 3 buffering, 0 ended
   const [ytError, setYtError] = useState(null);        // iframe player error code (101/150 = embed-restricted)
   const [showVideo, setShowVideo] = useState(false);   // per-user video on/off (audio never stops)
-  const [needsTapToJoin, setNeedsTapToJoin] = useState(false); // autoplay blocked -> user must gesture
+  const [_needsTapToJoin, setNeedsTapToJoin] = useState(false); // autoplay blocked -> user must gesture
 
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const syncIntervalRef = useRef(null);
     const [localPosition, setLocalPosition] = useState(0);
-  const [audioReady, setAudioReady] = useState(false);
+  const [_audioReady, setAudioReady] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -72,13 +72,52 @@ export default function Room({ socket, onLeave }) {
   // be playing but the local player is paused, and resume + seek to the
   // live expected position.
   useEffect(() => {
+    let retryTimer = null;
+
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       if (!playerState?.isPlaying) return;
 
+      const resume = () => {
+        if (isYtMode && ytRef.current) {
+          const expected = livePosition(playerState);
+          ytRef.current.seek(expected);
+          ytRef.current.play();
+        } else if (audioRef.current?.paused) {
+          const expected = livePosition(playerState);
+          audioRef.current.currentTime = expected;
+          audioRef.current.play().catch(err => console.error('Visibility resume error:', err));
+        }
+      };
+
+      resume();
+      // Retry after a short delay because the YouTube iframe may need time
+      // to wake up after the tab becomes visible (especially on mobile).
+      retryTimer = setTimeout(resume, 750);
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearTimeout(retryTimer);
+    };
+  }, [playerState?.isPlaying, playerState?.currentSong?.id, playerState?.position, playerState?.lastUpdated, isYtMode, ytReady]);
+
+  // Recovery interval: while the tab is visible and server says playing,
+  // check every 2 s that the YT player hasn't silently paused/stalled
+  // (mobile Chrome can freeze the iframe without changing its state).
+  useEffect(() => {
+    if (!playerState?.isPlaying) return;
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      if (!playerState?.isPlaying) return;
+
       if (isYtMode && ytRef.current) {
         const s = ytRef.current.getPlayerState();
-        if (s === 2 || s === -1 || s === 5) {
+        // 1 = playing, 3 = buffering; anything else while server says
+        // playing means the player is stuck
+        if (s !== 1 && s !== 3) {
           const expected = livePosition(playerState);
           ytRef.current.seek(expected);
           ytRef.current.play();
@@ -86,11 +125,11 @@ export default function Room({ socket, onLeave }) {
       } else if (audioRef.current?.paused) {
         const expected = livePosition(playerState);
         audioRef.current.currentTime = expected;
-        audioRef.current.play().catch(err => console.error('Visibility resume error:', err));
+        audioRef.current.play().catch(() => {});
       }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, 2000);
+
+    return () => clearInterval(interval);
   }, [playerState?.isPlaying, playerState?.currentSong?.id, playerState?.position, playerState?.lastUpdated, isYtMode, ytReady]);
 
   // Capture the start position exactly when the YT song changes (render-time,
@@ -121,6 +160,20 @@ export default function Room({ socket, onLeave }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const getSongUrl = (song) => {
+    if (!song) return null;
+    if (song.streamUrl) {
+      if (song.streamUrl.startsWith('http')) return song.streamUrl;
+      return `${window.location.origin}${song.streamUrl}`;
+    }
+    if (song.url) {
+      if (song.url.startsWith('blob:')) return song.url;
+      if (song.url.startsWith('http')) return song.url;
+      if (song.url.startsWith('/uploads/')) return `${window.location.origin}${song.url}`;
+    }
+    return null;
   };
 
   // ---- AUDIO SYNC LOGIC ----
@@ -303,26 +356,7 @@ export default function Room({ socket, onLeave }) {
     }
   }, [playerState?.position]);
 
-  const getSongUrl = (song) => {
-    if (!song) return null;
-    // Prefer the server-served stream URL (public URL after download/during playback)
-    if (song.streamUrl) {
-      if (song.streamUrl.startsWith('http')) return song.streamUrl;
-      // Server-relative path - prepend origin
-      return `${window.location.origin}${song.streamUrl}`;
-    }
-    if (song.url) {
-      // blob URLs from local device
-      if (song.url.startsWith('blob:')) return song.url;
-      // Full HTTP URLs (gdrive direct links, etc.)
-      if (song.url.startsWith('http')) return song.url;
-      // Server-relative /uploads/ paths
-      if (song.url.startsWith('/uploads/')) return `${window.location.origin}${song.url}`;
-    }
-    return null;
-  };
-
-    const handleSeek = (e) => {
+  const handleSeek = (e) => {
     if (!canControl) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
