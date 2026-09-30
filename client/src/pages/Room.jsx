@@ -53,8 +53,11 @@ export default function Room({ socket, onLeave }) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [showMobileQueue, setShowMobileQueue] = useState(false);
   const [showMobileParticipants, setShowMobileParticipants] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);             // desktop Queue ↔ Search tab
   const [showMobileSearch, setShowMobileSearch] = useState(false); // mobile search drawer
+  // Desktop collapsible panels: each independently toggleable.
+  // Default: queue open, search closed, chat open.
+  const [collapsed, setCollapsed] = useState({ queue: false, search: true, chat: false });
+  const toggleCollapsed = (panel) => setCollapsed((prev) => ({ ...prev, [panel]: !prev[panel] }));
 
   // Track viewport size reactively so layout responds to resizes
   useEffect(() => {
@@ -697,75 +700,135 @@ export default function Room({ socket, onLeave }) {
           )}
         </div>
 
-                  {/* Right Column - Panels (Desktop) / Chat (Mobile) */}
+                  {/* Right Column — Desktop: collapsible panels; Mobile: chat always visible */}
         <div style={{
           flex: isMobile ? 1 : '1 1 40%',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: isMobile ? '10px' : '4px',
           minWidth: isMobile ? 0 : '300px',
           minHeight: 0,
         }}>
-          {/* Queue / Search Panel — desktop only */}
+          {/* Desktop: three collapsible panels (Queue / Search / Chat) */}
           {!isMobile && (
-            <div className="glass-panel" style={{
-              flex: '1 1 50%', display: 'flex', flexDirection: 'column',
-              minHeight: 0, overflow: 'hidden',
-            }}>
-              {/* Tab bar */}
-              <div style={{
-                display: 'flex', gap: '4px', padding: '8px 10px 0',
-                borderBottom: '1px solid rgba(192,160,96,0.15)', flexShrink: 0,
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minHeight: 0 }}>
+
+              {/* ── Queue panel ── */}
+              <div className="glass-panel" style={{
+                flex: collapsed.queue ? '0 0 auto' : 1,
+                display: 'flex', flexDirection: 'column',
+                minHeight: 0, overflow: 'hidden',
               }}>
-                <button
-                  className={`walkman-btn ${!showSearch ? 'primary' : ''}`}
-                  style={{ fontSize: '12px', padding: '4px 12px' }}
-                  onClick={() => setShowSearch(false)}
+                <div
+                  onClick={() => toggleCollapsed('queue')}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', cursor: 'pointer', userSelect: 'none',
+                    borderBottom: collapsed.queue ? 'none' : '1px solid rgba(192,160,96,0.15)',
+                    fontSize: '13px', fontWeight: 'bold', flexShrink: 0,
+                  }}
                 >
-                  📋 Queue
-                </button>
-                <button
-                  className={`walkman-btn ${showSearch ? 'primary' : ''}`}
-                  style={{ fontSize: '12px', padding: '4px 12px' }}
-                  onClick={() => setShowSearch(true)}
-                >
-                  🔍 Search
-                </button>
-              </div>
-              {showSearch ? (
-                <div style={{ flex: 1, minHeight: 0, padding: '10px', overflow: 'hidden' }}>
-                  <SearchPanel socket={socket} />
+                  <span>📋 Queue</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)', transition: 'transform 0.2s' }}>
+                    {collapsed.queue ? '▶' : '▼'}
+                  </span>
                 </div>
-              ) : (
-                <QueuePanel
-                  queue={queue}
-                  currentIndex={playerState?.currentIndex}
-                  myInfo={myInfo}
-                  onRemove={(songId) => socket.removeFromQueue(songId)}
-                  onReorder={(from, to) => socket.reorderQueue(from, to)}
-                  onPlayFromQueue={(index) => socket.playFromQueue(index)}
-                  canControl={canControl}
-                  formatTime={formatTime}
-                />
-              )}
+                {!collapsed.queue && (
+                  <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                    <QueuePanel
+                      queue={queue}
+                      currentIndex={playerState?.currentIndex}
+                      myInfo={myInfo}
+                      onRemove={(songId) => socket.removeFromQueue(songId)}
+                      onReorder={(from, to) => socket.reorderQueue(from, to)}
+                      onPlayFromQueue={(index) => socket.playFromQueue(index)}
+                      canControl={canControl}
+                      formatTime={formatTime}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Search panel ── */}
+              <div className="glass-panel" style={{
+                flex: collapsed.search ? '0 0 auto' : 1,
+                display: 'flex', flexDirection: 'column',
+                minHeight: 0, overflow: 'hidden',
+              }}>
+                <div
+                  onClick={() => toggleCollapsed('search')}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', cursor: 'pointer', userSelect: 'none',
+                    borderBottom: collapsed.search ? 'none' : '1px solid rgba(192,160,96,0.15)',
+                    fontSize: '13px', fontWeight: 'bold', flexShrink: 0,
+                  }}
+                >
+                  <span>🔍 Search</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)', transition: 'transform 0.2s' }}>
+                    {collapsed.search ? '▶' : '▼'}
+                  </span>
+                </div>
+                {!collapsed.search && (
+                  <div style={{ flex: 1, minHeight: 0, padding: '10px', overflow: 'hidden' }}>
+                    <SearchPanel socket={socket} />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Chat panel ── */}
+              <div className="glass-panel" style={{
+                flex: collapsed.chat ? '0 0 auto' : 1,
+                display: 'flex', flexDirection: 'column',
+                minHeight: 0, overflow: 'hidden',
+              }}>
+                <div
+                  onClick={() => toggleCollapsed('chat')}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', cursor: 'pointer', userSelect: 'none',
+                    borderBottom: collapsed.chat ? 'none' : '1px solid rgba(192,160,96,0.15)',
+                    fontSize: '13px', fontWeight: 'bold', flexShrink: 0,
+                  }}
+                >
+                  <span>💬 Chat</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)', transition: 'transform 0.2s' }}>
+                    {collapsed.chat ? '▶' : '▼'}
+                  </span>
+                </div>
+                {!collapsed.chat && (
+                  <div style={{ flex: 1, minHeight: 0 }}>
+                    <Chat
+                      messages={socket.chatMessages}
+                      onSend={(msg) => socket.sendMessage(msg)}
+                      myInfo={myInfo}
+                      participants={participants}
+                      showParticipants={showParticipants}
+                      onToggleParticipants={() => setShowParticipants(!showParticipants)}
+                    />
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
-          {/* Chat — always visible on mobile */}
-          <div className="glass-panel" style={{
-            flex: isMobile ? 1 : '1 1 50%',
-            display: 'flex', flexDirection: 'column',
-            minHeight: 0, overflow: 'hidden',
-          }}>
-            <Chat
-              messages={socket.chatMessages}
-              onSend={(msg) => socket.sendMessage(msg)}
-              myInfo={myInfo}
-              participants={participants}
-              showParticipants={showParticipants}
-              onToggleParticipants={() => setShowParticipants(!showParticipants)}
-            />
-          </div>
+          {/* Mobile: chat always visible */}
+          {isMobile && (
+            <div className="glass-panel" style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              minHeight: 0, overflow: 'hidden',
+            }}>
+              <Chat
+                messages={socket.chatMessages}
+                onSend={(msg) => socket.sendMessage(msg)}
+                myInfo={myInfo}
+                participants={participants}
+                showParticipants={showParticipants}
+                onToggleParticipants={() => setShowParticipants(!showParticipants)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

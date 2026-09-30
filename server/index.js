@@ -118,16 +118,34 @@ app.get('/api/yt-debug-info', async (req, res) => {
 });
 
 // Music catalog search (YouTube Music). Primary UX: search a song, get
-// YTM track results (like Metrolist/Echo/Vivi), then play via the
-// existing /api/youtube-audio proxy.
+// track results sorted by YouTube relevance, then play via the existing
+// /api/youtube-audio proxy.  Supports lazy-load pagination: the initial
+// search returns a continuation token, POST /api/music-search/more with
+// that token to fetch the next page.
 app.get('/api/music-search', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: 'Missing q' });
   try {
     const youtube = await import('./youtube.mjs');
-    res.json({ query: q, results: await youtube.searchMusic(q) });
+    const { results, continuation } = await youtube.searchCatalog(q);
+    res.json({ query: q, results, continuation });
   } catch (err) {
     console.error('Music search failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Continuation: fetch the next page of search results.
+// Body: { continuation: "<token from previous response>" }
+app.post('/api/music-search/more', async (req, res) => {
+  const token = String(req.body?.continuation || '').trim();
+  if (!token) return res.status(400).json({ error: 'Missing continuation token' });
+  try {
+    const youtube = await import('./youtube.mjs');
+    const { results, continuation } = await youtube.searchCatalogMore(token);
+    res.json({ results, continuation });
+  } catch (err) {
+    console.error('Music search continuation failed: ' + err.message);
     res.status(500).json({ error: err.message });
   }
 });

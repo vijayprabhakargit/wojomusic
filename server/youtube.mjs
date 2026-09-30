@@ -487,4 +487,172 @@ export async function diagnose(videoId, opts) {
   };
 }
 
-export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo, getDebugLog, clearDebugLog, searchMusic };
+export default { getInfo, getStreamUrl, warmUp, diagnose, rotateIdentity, identityInfo, getDebugLog, clearDebugLog, searchMusic, searchCatalog, searchCatalogMore };
+
+// ---- YouTube catalog search with lazy-load continuation ----
+
+/**
+ * In-memory search continuation cache.  Each entry stores the youtubei.js
+ * Search object (which holds the HTTP client reference) plus an expiry.
+ * Entries are evicted after SEARCH_CACHE_TTL_MS (default 5 minutes) and on
+ * a periodic timer.
+ */
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const searchCache = new Map();
+
+// Periodic eviction of stale search contexts
+const _searchCacheTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [token, entry] of searchCache) {
+    if (now > entry.expires) searchCache.delete(token);
+  }
+}, 60000);
+// Unref so the timer doesn't keep the process alive in tests
+if (_searchCacheTimer && typeof _searchCacheTimer.unref === 'function') _searchCacheTimer.unref();
+
+/**
+ * Extract plain-song results from a regular YouTube Search result.
+ * Keeps only Video items with valid 11-char IDs, mapped to the same
+ * shape as searchMusic() so the client sees a consistent format.
+ */
+function extractVideoResults(search) {
+  const items = Array.isArray(search.results) ? search.results : [];
+  const out = [];
+  for (const item of items) {
+    if (item.type !== 'Video') continue;
+    const id = item.id;
+    if (!id || !/^[a-zA-Z0-9_-]{11}$/.test(id)) continue;
+    const title =
+      (typeof item.title === 'string' && item.title) ||
+      (item.title && item.title.text) ||
+      null;
+    if (!title) continue;
+    const author = item.author
+      ? (typeof item.author === 'string'
+          ? item.author
+          : (item.author.name || item.author.text || ''))
+      : '';
+    const durationSeconds =
+      (item.duration && (item.duration.seconds || item.duration)) || 0;
+    const thumbs = Array.isArray(item.thumbnails) ? item.thumbnails : [];
+    out.push({
+      videoId: id,
+      title,
+      artist: author,
+      duration: typeof durationSeconds === 'number' ? durationSeconds : 0,
+      thumbnail: thumbs.length
+        ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url || '')
+        : '',
+    });
+  }
+  return out;
+}
+
+function generateSearchToken() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+/**
+ * Search YouTube via the regular search endpoint (sorted by relevance,
+ * supports pagination via continuation tokens).  Returns up to ~20
+ * video results per page.
+ *
+ * @param {string} query  Free-text search query
+ * @returns {Promise<{results: Array, continuation: string|null}>}
+ */
+export async function searchCatalog(query) {
+  const yt = await getInnertube();
+  const search = await yt.search(query);
+  const results = extractVideoResults(search);
+
+  let continuation = null;
+  if (search.has_continuation && typeof search.getContinuation === 'function') {
+    const token = generateSearchToken();
+    searchCache.set(token, { search, expires: Date.now() + SEARCH_CACHE_TTL_MS });
+    continuation = token;
+  }
+
+  return { results, continuation };
+}
+
+/**
+ * Fetch the next page of results for a previous search.  The caller passes
+ * the continuation token returned by the previous `searchCatalog` (or a
+ * prior `searchCatalogMore`) call.
+ *
+ * @param {string} token  Continuation token from a previous search
+ * @returns {Promise<{results: Array, continuation: string|null}>}
+ */
+export async function searchCatalogMore(token) {
+  const entry = searchCache.get(token);
+  if (!entry) throw new Error('Search session expired. Please search again.');
+  searchCache.delete(token); // one-shot: the search object is consumed
+
+  const more = await entry.search.getContinuation();
+
+  // Flatten continuation results (they may be in search.results or
+  // further nested; `more` is also a Search-shaped object).
+  let results;
+  if (Array.isArray(more.results) && more.results.length) {
+    results = extractVideoResults(more);
+  } else if (Array.isArray(more.contents)) {
+    // Fallback: some continuation responses nest items in contents
+    const flat = more.contents.flatMap((sec) =>
+      Array.isArray(sec && sec.contents) ? sec.contents : [sec]
+    );
+    results = flat
+      .filter(
+        (it) =>
+          it && (it.type === 'Video' || it.type === 'MusicResponsiveListItem') &&
+          /^[a-zA-Z0-9_-]{11}$/.test(String(it.id || ''))
+      )
+      .map((it) => {
+        const title =
+          (typeof it.title === 'string' && it.title) ||
+          (it.title && it.title.text) ||
+          null;
+        if (!title) return null;
+        const artistList = it.authors || it.artists || [];
+        const artist = Array.isArray(artistList)
+          ? artistList
+              .map((a) =>
+                a &&
+                ((a.name && a.name.text) ||
+                  a.name ||
+                  (a.text && a.text.text) ||
+                  a.text)
+              )
+              .filter(Boolean)
+              .join(', ')
+          : (it.author || '');
+        const dur =
+          it.duration
+            ? (typeof it.duration === 'string'
+                ? it.duration
+                : it.duration.seconds || it.duration.text || '')
+            : 0;
+        const thumbs = it.thumbnail || it.thumbnails || [];
+        return {
+          videoId: id,
+          title,
+          artist: artist || '',
+          duration: typeof dur === 'number' ? dur : 0,
+          thumbnail: Array.isArray(thumbs) && thumbs.length
+            ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url || '')
+            : '',
+        };
+      })
+      .filter(Boolean);
+  } else {
+    results = [];
+  }
+
+  let continuation = null;
+  if (more.has_continuation && typeof more.getContinuation === 'function') {
+    const newToken = generateSearchToken();
+    searchCache.set(newToken, { search: more, expires: Date.now() + SEARCH_CACHE_TTL_MS });
+    continuation = newToken;
+  }
+
+  return { results, continuation };
+}
