@@ -128,8 +128,8 @@ export default function SearchPanel({ socket }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
-      {/* Search input */}
-      <div>
+      {/* Search input with clear button */}
+      <div style={{ position: 'relative' }}>
         <input
           className="walkman-input"
           placeholder="Search YouTube Music..."
@@ -141,8 +141,27 @@ export default function SearchPanel({ socket }) {
               doSearch(query);
             }
           }}
-          style={{ fontSize: '14px' }}
+          style={{ fontSize: '14px', paddingRight: query ? '30px' : '12px' }}
         />
+        {query && (
+          <button
+            onClick={() => {
+              setQuery('');
+              setResults([]);
+              setContinuation(null);
+              setSearched(false);
+              setError('');
+            }}
+            style={{
+              position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', color: 'var(--text-secondary)',
+              cursor: 'pointer', padding: '4px', fontSize: '14px', lineHeight: 1,
+            }}
+            title="Clear search"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Results area */}

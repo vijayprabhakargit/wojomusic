@@ -34,52 +34,13 @@ export default function QueuePanel({
     setDragIndex(null);
   };
 
-  return (
+return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
       minHeight: 0,
     }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '10px 14px',
-        borderBottom: '1px solid rgba(192,160,96,0.2)',
-      }}>
-        <span style={{
-          fontSize: '14px',
-          color: 'var(--accent)',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}>
-          📋 Queue
-          <span style={{
-            fontSize: '11px',
-            color: 'var(--text-secondary)',
-            background: 'rgba(192,160,96,0.1)',
-            padding: '1px 6px',
-            borderRadius: '10px',
-          }}>
-            {(() => {
-              const diskCount = queue.filter(s => s.source === "local" || s.source === "gdrive").length;
-              const ytCount = queue.filter(s => s.source === "youtube").length;
-              const _total = queue.length;
-              return diskCount + "/20" + (ytCount > 0 ? " +" + ytCount + " stream" : "");
-            })()}
-          </span>
-        </span>
-        {canControl && queue.length > 0 && (
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-            drag to reorder
-          </span>
-        )}
-      </div>
-
       {/* Queue List */}
       <div style={{
         flex: 1,

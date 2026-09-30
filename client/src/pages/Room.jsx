@@ -728,9 +728,31 @@ export default function Room({ socket, onLeave }) {
                     fontSize: '13px', fontWeight: 'bold', flexShrink: 0,
                   }}
                 >
-                  <span>📋 Queue</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)', transition: 'transform 0.2s' }}>
-                    {collapsed.queue ? '▶' : '▼'}
+                  <span>📋 Queue
+                    {queue.length > 0 && (
+                      <span style={{
+                        fontSize: '11px', color: 'var(--text-secondary)',
+                        background: 'rgba(192,160,96,0.1)',
+                        padding: '1px 6px', borderRadius: '10px',
+                        marginLeft: '6px',
+                      }}>
+                        {(() => {
+                          const diskCount = queue.filter(s => s.source === "local" || s.source === "gdrive").length;
+                          const ytCount = queue.filter(s => s.source === "youtube").length;
+                          return diskCount + "/20" + (ytCount > 0 ? " +" + ytCount + " stream" : "");
+                        })()}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {canControl && queue.length > 0 && (
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)', opacity: 0.6 }}>
+                        drag to reorder
+                      </span>
+                    )}
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)', transition: 'transform 0.2s' }}>
+                      {collapsed.queue ? '▶' : '▼'}
+                    </span>
                   </span>
                 </div>
                 {!collapsed.queue && (
