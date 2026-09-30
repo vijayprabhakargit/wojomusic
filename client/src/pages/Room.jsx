@@ -59,6 +59,13 @@ export default function Room({ socket, onLeave }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+    const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
+  const currentSong = playerState?.currentSong;
+
+    // Active playback engine: 'yt' (IFrame API) or 'audio' (local/gdrive/legacy)
+  const ytVideoId = resolveYtVideoId(currentSong);
+  const isYtMode = Boolean(ytVideoId);
+
   // Resume playback when tab becomes visible: the browser may pause the
   // YouTube iframe or <audio> element when the tab is hidden (especially
   // on mobile). When the user returns, check if the server says it should
@@ -85,13 +92,6 @@ export default function Room({ socket, onLeave }) {
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [playerState?.isPlaying, playerState?.currentSong?.id, playerState?.position, playerState?.lastUpdated, isYtMode, ytReady]);
-
-    const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
-  const currentSong = playerState?.currentSong;
-
-    // Active playback engine: 'yt' (IFrame API) or 'audio' (local/gdrive/legacy)
-  const ytVideoId = resolveYtVideoId(currentSong);
-  const isYtMode = Boolean(ytVideoId);
 
   // Capture the start position exactly when the YT song changes (render-time,
   // so <YtIframePlayer> loads once with the right startSeconds instead of
