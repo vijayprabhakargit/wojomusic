@@ -32,7 +32,6 @@ const livePosition = (ps) => {
 };
 
 export default function Room({ socket, onLeave }) {
-  const [activePanel, setActivePanel] = useState('queue'); // 'queue' | 'chat' | 'participants'
   const [showSourceModal, setShowSourceModal] = useState(false);
 
   // ---- YouTube IFrame engine state ----
@@ -51,6 +50,8 @@ export default function Room({ socket, onLeave }) {
   const [showParticipants, setShowParticipants] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [showMobileQueue, setShowMobileQueue] = useState(false);
+  const [showMobileParticipants, setShowMobileParticipants] = useState(false);
 
   // Track viewport size reactively so layout responds to resizes
   useEffect(() => {
@@ -500,6 +501,7 @@ export default function Room({ socket, onLeave }) {
             onPrev={() => socket.prevTrack()}
             onSeek={handleSeek}
                         onAddSource={() => setShowSourceModal(true)}
+                        compact={isMobile && showVideo}
                                     myInfo={myInfo}
                                     videoSlot={isYtMode ? (
                                       <YtIframePlayer
@@ -571,102 +573,140 @@ export default function Room({ socket, onLeave }) {
             />
           )}
 
-          {/* Mobile Panel Switcher */}
-                    {isMobile && (
-                    <div style={{
-                      display: 'flex',
-                      gap: '6px',
-                      marginTop: '4px',
-                    }}>
-            {[
-              { id: 'queue', label: '📋 Queue', count: queue?.length },
-              { id: 'chat', label: '💬 Chat' },
-              { id: 'participants', label: '👥 People', count: participants?.length },
-            ].map((panel) => (
+          {/* Mobile: queue & participants badges */}
+          {isMobile && (
+            <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
               <button
-                key={panel.id}
-                className={`walkman-btn ${activePanel === panel.id ? 'primary' : ''}`}
+                className="walkman-btn"
                 style={{ flex: 1, fontSize: '12px', padding: '8px', position: 'relative' }}
-                onClick={() => setActivePanel(panel.id)}
+                onClick={() => setShowMobileQueue(true)}
               >
-                {panel.label}
-                {panel.count !== undefined && (
+                📋 Queue
+                {queue?.length > 0 && (
                   <span style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    background: 'var(--accent)',
-                    color: '#1a1a1a',
-                    borderRadius: '50%',
-                    width: '18px',
-                    height: '18px',
-                    fontSize: '11px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    background: 'var(--accent)', color: '#1a1a1a',
+                    borderRadius: '50%', width: '18px', height: '18px',
+                    fontSize: '11px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {panel.count}
+                    {queue.length}
                   </span>
                 )}
               </button>
-            ))}
-          </div>
-                    )}
+              <button
+                className="walkman-btn"
+                style={{ flex: 1, fontSize: '12px', padding: '8px', position: 'relative' }}
+                onClick={() => setShowMobileParticipants(true)}
+              >
+                👥 People
+                {participants?.length > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    background: 'var(--accent)', color: '#1a1a1a',
+                    borderRadius: '50%', width: '18px', height: '18px',
+                    fontSize: '11px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {participants.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Mobile queue slide-up drawer */}
+          {isMobile && showMobileQueue && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{ flex: 1 }} onClick={() => setShowMobileQueue(false)} />
+              <div className="glass-panel" style={{
+                borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+                padding: '16px', maxHeight: '70vh', overflow: 'auto',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <strong>Queue</strong>
+                  <button className="walkman-btn" onClick={() => setShowMobileQueue(false)}>✕</button>
+                </div>
+                <QueuePanel
+                  queue={queue}
+                  currentIndex={playerState?.currentIndex}
+                  myInfo={myInfo}
+                  onRemove={(songId) => socket.removeFromQueue(songId)}
+                  onReorder={(from, to) => socket.reorderQueue(from, to)}
+                  onPlayFromQueue={(index) => socket.playFromQueue(index)}
+                  canControl={canControl}
+                  formatTime={formatTime}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile participants slide-up drawer */}
+          {isMobile && showMobileParticipants && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{ flex: 1 }} onClick={() => setShowMobileParticipants(false)} />
+              <div className="glass-panel" style={{
+                borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+                padding: '16px', maxHeight: '70vh', overflow: 'auto',
+              }}>
+                <Participants
+                  participants={participants}
+                  myInfo={myInfo}
+                  onClose={() => setShowMobileParticipants(false)}
+                />
+              </div>
+            </div>
+          )}
                   </div>
 
-                  {/* Right Column - Panels (Desktop) */}
-                        <div style={{
-                  flex: isMobile ? 1 : '1 1 40%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  minWidth: isMobile ? 0 : '300px',
-                  minHeight: 0,
-                }}>
-                  {/* Queue Panel */}
-                  <div className="glass-panel" style={{
-                    flex: isMobile ? 1 : '1 1 50%',
-                    display: isMobile ? (activePanel === 'queue' ? 'flex' : 'none') : 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
-                                overflow: 'hidden',
-                              }}>
-                        <QueuePanel
-                                      queue={queue}
-                                      currentIndex={playerState?.currentIndex}
-                                      myInfo={myInfo}
-                                      onRemove={(songId) => socket.removeFromQueue(songId)}
-                                      onReorder={(from, to) => socket.reorderQueue(from, to)}
-                                      onPlayFromQueue={(index) => socket.playFromQueue(index)}
-                                      canControl={canControl}
-                                      formatTime={formatTime}
-                                    />
-          </div>
+                  {/* Right Column - Panels (Desktop) / Chat (Mobile) */}
+        <div style={{
+          flex: isMobile ? 1 : '1 1 40%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          minWidth: isMobile ? 0 : '300px',
+          minHeight: 0,
+        }}>
+          {/* Queue Panel — desktop only */}
+          {!isMobile && (
+            <div className="glass-panel" style={{
+              flex: '1 1 50%', display: 'flex', flexDirection: 'column',
+              minHeight: 0, overflow: 'hidden',
+            }}>
+              <QueuePanel
+                queue={queue}
+                currentIndex={playerState?.currentIndex}
+                myInfo={myInfo}
+                onRemove={(songId) => socket.removeFromQueue(songId)}
+                onReorder={(from, to) => socket.reorderQueue(from, to)}
+                onPlayFromQueue={(index) => socket.playFromQueue(index)}
+                canControl={canControl}
+                formatTime={formatTime}
+              />
+            </div>
+          )}
 
-          {/* Chat + Participants */}
-                    <div className="glass-panel" style={{
-                      flex: isMobile ? 1 : '1 1 50%',
-                      display: isMobile ? (activePanel === 'chat' || activePanel === 'participants' ? 'flex' : 'none') : 'flex',
-                      flexDirection: 'column',
-                      minHeight: 0,
-                                  overflow: 'hidden',
-                                }}>
-                        {activePanel === 'participants' && isMobile ? (
-              <Participants
-                participants={participants}
-                myInfo={myInfo}
-                onClose={() => setActivePanel('chat')}
-              />
-            ) : (
-              <Chat
-                messages={socket.chatMessages}
-                onSend={(msg) => socket.sendMessage(msg)}
-                myInfo={myInfo}
-                participants={participants}
-                showParticipants={showParticipants}
-                onToggleParticipants={() => setShowParticipants(!showParticipants)}
-              />
-            )}
+          {/* Chat — always visible on mobile */}
+          <div className="glass-panel" style={{
+            flex: isMobile ? 1 : '1 1 50%',
+            display: 'flex', flexDirection: 'column',
+            minHeight: 0, overflow: 'hidden',
+          }}>
+            <Chat
+              messages={socket.chatMessages}
+              onSend={(msg) => socket.sendMessage(msg)}
+              myInfo={myInfo}
+              participants={participants}
+              showParticipants={showParticipants}
+              onToggleParticipants={() => setShowParticipants(!showParticipants)}
+            />
           </div>
         </div>
       </div>

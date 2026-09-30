@@ -18,7 +18,8 @@ export default function WalkmanPlayer({
   myInfo,
     videoSlot,   // always-mounted node (e.g. YtIframePlayer) - audio keeps playing even when collapsed
     showVideo,   // false -> collapsed to 1px inside the deck; true -> deck expands with a video screen
-    onToggleVideo // shown next to Add Song when a YouTube video screen is available
+    onToggleVideo, // shown next to Add Song when a YouTube video screen is available
+    compact      // true -> hide tape reels & visualizer (used on mobile when video is shown)
   }) {
   return (
     <div className="cassette-frame" style={{
@@ -63,8 +64,9 @@ export default function WalkmanPlayer({
                 </div>
               )}
 
-              {/* Tape Reels */}
-        <div style={{
+              {/* Tape Reels (hidden in compact mode to save screen for video) */}
+              {!compact && (<>
+              <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -155,6 +157,7 @@ export default function WalkmanPlayer({
             ))}
           </div>
         )}
+        </>)}
 
         {/* Progress Bar */}
         <div
