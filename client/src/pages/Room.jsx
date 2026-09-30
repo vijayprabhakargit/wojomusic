@@ -73,7 +73,7 @@ export default function Room({ socket, onLeave }) {
   const prevYtIdRef = useRef(null);
   if (ytVideoId !== prevYtIdRef.current) {
       prevYtIdRef.current = ytVideoId;
-      ytStartAtRef.current = livePosition(playerState);
+      ytStartAtRef.current = playerState?.position || 0;
     }
   const ytStartAt = ytStartAtRef.current;
 
