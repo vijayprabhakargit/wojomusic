@@ -5,6 +5,7 @@ import SourceSelector from '../components/SourceSelector';
 import QueuePanel from '../components/QueuePanel';
 import Chat from '../components/Chat';
 import Participants from '../components/Participants';
+import SearchPanel from '../components/SearchPanel';
 
 // Extract an 11-char video id from any common YouTube URL shape
 const extractYtId = (url) => {
@@ -52,6 +53,8 @@ export default function Room({ socket, onLeave }) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [showMobileQueue, setShowMobileQueue] = useState(false);
   const [showMobileParticipants, setShowMobileParticipants] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);             // desktop Queue ↔ Search tab
+  const [showMobileSearch, setShowMobileSearch] = useState(false); // mobile search drawer
 
   // Track viewport size reactively so layout responds to resizes
   useEffect(() => {
@@ -573,7 +576,7 @@ export default function Room({ socket, onLeave }) {
             />
           )}
 
-          {/* Mobile: queue & participants badges */}
+          {/* Mobile: queue, search & participants badges */}
           {isMobile && (
             <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
               <button
@@ -593,6 +596,13 @@ export default function Room({ socket, onLeave }) {
                     {queue.length}
                   </span>
                 )}
+              </button>
+              <button
+                className="walkman-btn"
+                style={{ flex: 1, fontSize: '12px', padding: '8px', position: 'relative' }}
+                onClick={() => setShowMobileSearch(true)}
+              >
+                🔍 Search
               </button>
               <button
                 className="walkman-btn"
@@ -663,7 +673,29 @@ export default function Room({ socket, onLeave }) {
               </div>
             </div>
           )}
-                  </div>
+
+          {/* Mobile search slide-up drawer */}
+          {isMobile && showMobileSearch && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{ flex: 1 }} onClick={() => setShowMobileSearch(false)} />
+              <div className="glass-panel" style={{
+                borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+                padding: '16px', maxHeight: '80vh', overflow: 'auto',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <strong>🔍 Search YouTube</strong>
+                  <button className="walkman-btn" onClick={() => setShowMobileSearch(false)}>✕</button>
+                </div>
+                <div style={{ height: '50vh' }}>
+                  <SearchPanel socket={socket} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
                   {/* Right Column - Panels (Desktop) / Chat (Mobile) */}
         <div style={{
@@ -674,22 +706,48 @@ export default function Room({ socket, onLeave }) {
           minWidth: isMobile ? 0 : '300px',
           minHeight: 0,
         }}>
-          {/* Queue Panel — desktop only */}
+          {/* Queue / Search Panel — desktop only */}
           {!isMobile && (
             <div className="glass-panel" style={{
               flex: '1 1 50%', display: 'flex', flexDirection: 'column',
               minHeight: 0, overflow: 'hidden',
             }}>
-              <QueuePanel
-                queue={queue}
-                currentIndex={playerState?.currentIndex}
-                myInfo={myInfo}
-                onRemove={(songId) => socket.removeFromQueue(songId)}
-                onReorder={(from, to) => socket.reorderQueue(from, to)}
-                onPlayFromQueue={(index) => socket.playFromQueue(index)}
-                canControl={canControl}
-                formatTime={formatTime}
-              />
+              {/* Tab bar */}
+              <div style={{
+                display: 'flex', gap: '4px', padding: '8px 10px 0',
+                borderBottom: '1px solid rgba(192,160,96,0.15)', flexShrink: 0,
+              }}>
+                <button
+                  className={`walkman-btn ${!showSearch ? 'primary' : ''}`}
+                  style={{ fontSize: '12px', padding: '4px 12px' }}
+                  onClick={() => setShowSearch(false)}
+                >
+                  📋 Queue
+                </button>
+                <button
+                  className={`walkman-btn ${showSearch ? 'primary' : ''}`}
+                  style={{ fontSize: '12px', padding: '4px 12px' }}
+                  onClick={() => setShowSearch(true)}
+                >
+                  🔍 Search
+                </button>
+              </div>
+              {showSearch ? (
+                <div style={{ flex: 1, minHeight: 0, padding: '10px', overflow: 'hidden' }}>
+                  <SearchPanel socket={socket} />
+                </div>
+              ) : (
+                <QueuePanel
+                  queue={queue}
+                  currentIndex={playerState?.currentIndex}
+                  myInfo={myInfo}
+                  onRemove={(songId) => socket.removeFromQueue(songId)}
+                  onReorder={(from, to) => socket.reorderQueue(from, to)}
+                  onPlayFromQueue={(index) => socket.playFromQueue(index)}
+                  canControl={canControl}
+                  formatTime={formatTime}
+                />
+              )}
             </div>
           )}
 
