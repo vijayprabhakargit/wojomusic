@@ -59,6 +59,33 @@ export default function Room({ socket, onLeave }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Resume playback when tab becomes visible: the browser may pause the
+  // YouTube iframe or <audio> element when the tab is hidden (especially
+  // on mobile). When the user returns, check if the server says it should
+  // be playing but the local player is paused, and resume + seek to the
+  // live expected position.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!playerState?.isPlaying) return;
+
+      if (isYtMode && ytRef.current) {
+        const s = ytRef.current.getPlayerState();
+        if (s === 2 || s === -1 || s === 5) {
+          const expected = livePosition(playerState);
+          ytRef.current.seek(expected);
+          ytRef.current.play();
+        }
+      } else if (audioRef.current?.paused) {
+        const expected = livePosition(playerState);
+        audioRef.current.currentTime = expected;
+        audioRef.current.play().catch(err => console.error('Visibility resume error:', err));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [playerState?.isPlaying, playerState?.currentSong?.id, playerState?.position, playerState?.lastUpdated, isYtMode, ytReady]);
+
     const { playerState, queue, participants, myInfo, roomId, isConnected } = socket;
   const currentSong = playerState?.currentSong;
 
@@ -198,6 +225,7 @@ export default function Room({ socket, onLeave }) {
     }
 
         progressIntervalRef.current = setInterval(() => {
+      if (document.hidden) return;
       if (isYtMode) {
         // 1 = playing, 3 = buffering (still reports time)
         const s = ytRef.current?.getPlayerState?.();

@@ -52,6 +52,7 @@ const YtIframePlayer = forwardRef(function YtIframePlayer(
         disablekb: 1,
         modestbranding: 1,
         iv_load_policy: 3,
+        pausesVideoInBackground: 0,
       },
       events: {
         onReady: () => {
