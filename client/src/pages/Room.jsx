@@ -63,8 +63,12 @@ export default function Room({ socket, onLeave }) {
   const currentSong = playerState?.currentSong;
 
     // Active playback engine: 'yt' (IFrame API) or 'audio' (local/gdrive/legacy)
+  // On mobile, prefer the <audio> element when the server has extracted a
+  // YouTube audio stream (background playback support). Desktop always uses
+  // the iframe since it handles background tabs fine.
   const ytVideoId = resolveYtVideoId(currentSong);
-  const isYtMode = Boolean(ytVideoId);
+  const preferAudioStream = isMobile && currentSong?.streamUrl && currentSong?.isYouTubeStream;
+  const isYtMode = Boolean(ytVideoId) && !preferAudioStream;
 
   // Resume playback when tab becomes visible: the browser may pause the
   // YouTube iframe or <audio> element when the tab is hidden (especially
@@ -497,7 +501,7 @@ export default function Room({ socket, onLeave }) {
             onSeek={handleSeek}
                         onAddSource={() => setShowSourceModal(true)}
                                     myInfo={myInfo}
-                                    videoSlot={ytVideoId ? (
+                                    videoSlot={isYtMode ? (
                                       <YtIframePlayer
                                         ref={ytRef}
                                         videoId={ytVideoId}

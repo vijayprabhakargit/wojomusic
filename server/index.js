@@ -655,10 +655,20 @@ io.on('connection', (socket) => {
               playNext(roomId);
             });
         } else if (song.source === 'youtube' && song.videoId) {
-          // Play via the client-side YouTube IFrame Player API: no server-side
-          // InnerTube call, no download, no bot-check. The client uses
-          // song.videoId directly and reports progress like any other source.
-          processSong();
+          // Try server-side audio extraction so mobile clients can use
+          // <audio> element (supports background playback). Falls back to
+          // the client-side YouTube IFrame Player API on failure.
+          fileHandler.getYouTubeStreamUrl(song.videoId)
+            .then(() => {
+              song.streamUrl = '/api/youtube-audio/' + song.videoId;
+              song.isYouTubeStream = true;
+              processSong();
+            })
+            .catch(() => {
+              // Fall back to client-side iframe if extraction fails
+              // (bot check, expired token, etc.)
+              processSong();
+            });
         } else if (song.source === 'youtube' && song.url) {
                       // Legacy fallback: no videoId on the item - try the server path
                       fileHandler.downloadFromYoutube(song.url, roomId, song.id)
