@@ -24,18 +24,22 @@ A real-time synchronized music player with a retro cassette player aesthetic. Cr
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 19 + Vite |
+| **Web Frontend** | React 19 + Vite |
+| **Android Client** | Kotlin 2.0 + Jetpack Compose + Hilt DI |
 | **Backend** | Node.js + Express |
 | **Real-time** | Socket.IO (WebSocket + Polling) |
 | **Styling** | Custom CSS (retro cassette theme) |
 | **File Storage** | Server filesystem (in-memory room state) |
 | **YouTube** | yt-dlp (via youtube-dl-exec) — audio extraction & metadata |
+| **InnerTube** | Android-native YouTube stream resolver via Ktor (device-side) |
+| **Playback (Android)** | ExoPlayer + MediaSessionService (background playback) |
 | **Font** | Share Tech Mono (Google Fonts) |
 
 ## 📋 Prerequisites
 
 - Node.js 18+
 - npm 9+
+- **Android client only:** Android SDK 35+ (via Android Studio), JDK 17, Gradle 8.6+
 
 ## 🚀 Quick Start
 
@@ -56,14 +60,35 @@ This starts:
 ### Production Build
 
 ```bash
-# Build client
+# Build web client
 cd client && npm run build
 
 # Start server (serves client build + API)
 cd ../server && npm start
+
+# Build android client (requires Android SDK)
+cd ../android-client && ./gradlew assembleDebug
 ```
 
 Server will be at http://localhost:3001 serving both API and client.
+
+The Android client debug build (`assembleDebug`) produces an APK at:
+```
+android-client/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Build All Targets (from repo root)
+
+```bash
+# Web client + server
+npm run build
+
+# Android client only
+npm run build:android
+
+# Web client only
+npm run build:web
+```
 
 ## 🏗 Project Structure
 
@@ -75,7 +100,7 @@ wojomusic/
 │   ├── fileHandler.js    # File upload/download/cleanup
 │   ├── uploads/          # Uploaded audio files (auto-created)
 │   └── package.json
-├── client/
+├── client/               # Web frontend (React + Vite)
 │   ├── public/
 │   │   └── favicon.svg   # Cat-with-headphones logo
 │   ├── src/
@@ -88,13 +113,39 @@ wojomusic/
 │   │   │   └── Room.jsx     # Main music room page
 │   │   └── components/
 │   │       ├── WalkmanPlayer.jsx  # Cassette player UI
-│   │   ├── SourceSelector.jsx # File/GDrive/YouTube source picker
+│   │       ├── SourceSelector.jsx # File/GDrive/YouTube source picker
 │   │       ├── QueuePanel.jsx     # Song queue list
 │   │       ├── Chat.jsx           # Live chat + participants
 │   │       └── Participants.jsx   # Participant list view
 │   ├── package.json
 │   └── vite.config.js
-└── package.json
+├── android-client/        # Android native app (Kotlin + Compose)
+│   ├── build.gradle.kts      # Root Gradle build (plugins)
+│   ├── settings.gradle.kts   # Module config
+│   ├── gradle/
+│   │   ├── libs.versions.toml # Version catalog
+│   │   ├── gradle.properties  # Gradle settings
+│   │   └── wrapper/           # Gradle wrapper
+│   ├── app/
+│   │   ├── build.gradle.kts  # App module (Compose, ExoPlayer, socket.io)
+│   │   ├── proguard-rules.pro
+│   │   └── src/main/
+│   │       ├── AndroidManifest.xml
+│   │       ├── res/           # Icons, themes
+│   │       └── kotlin/com/wojo/music/
+│   │           ├── WojoApp.kt         # Hilt Application
+│   │           ├── MainActivity.kt    # Single Activity with NavHost
+│   │           ├── WojoColors.kt      # Color scheme
+│   │           ├── service/           # MusicService, WojoSocketService
+│   │           ├── protocol/          # Models, SocketClient, SyncManager
+│   │           ├── playback/          # ExoPlayerManager, InnerTubeResolver
+│   │           ├── ui/                # LandingScreen, RoomScreen, PlayerBar,
+│   │           │                      # QueueSheet, ChatPanel, SearchSheet,
+│   │           │                      # ParticipantsSheet, FullPlayerSheet,
+│   │           │                      # SourceSelectorSheet
+│   │           └── di/                # NetworkModule, SocketModule
+│   └── local.properties   # Android SDK path override
+└── package.json            # Root monorepo scripts
 ```
 
 ## 🎮 How to Use
@@ -208,29 +259,17 @@ A bold vision to evolve Wojo Music into a cross-platform, multi-source music syn
 
 ### 📱 Android Native Client
 
-Build a native Android app (Kotlin + Jetpack Compose) that shares the same server, so:
-- Desktop users (via browser) and mobile users (via native app) can **jam together in the same room**
-- The Android client uses the same Socket.IO protocol — events, rooms, queue, chat all shared seamlessly
-- Native features: audio focus handling, background playback, lock-screen controls, notification player
-- Phone-as-controller: use the Android app as a remote for a desktop-connected speaker setup
-- **Tech stack:** Kotlin + Jetpack Compose for UI, Socket.IO Java client for real-time, ExoPlayer for audio
+✅ **Done:** Native Android app (Kotlin + Jetpack Compose) sharing the same server.
+- Uses the same Socket.IO protocol — events, rooms, queue, chat all shared seamlessly
+- ExoPlayer for audio with background playback via MediaSessionService
+- InnerTube YouTube stream resolution (device-side, no PoToken needed)
+- Hilt DI for dependency injection
+- Full UI parity: Landing, Room, PlayerBar, Queue, Chat, Search, Participants, FullPlayer sheets
 
-**Architecture vision:**
-
-```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│   Web Client  │      │    Server     │      │ Android App │
-│  (React/Vite) │◄────►│  (Node.js +   │◄────►│ (Kotlin +   │
-│               │      │   Socket.IO)  │      │  Compose)   │
-└──────────────┘      └──────────────┘      └──────────────┘
-                             │
-                     ┌───────├───────┐
-                     │  Third-Party  │
-                     │    Sources    │
-                     │ (YouTube,     │
-                     │  Spotify, etc)│
-                     └─────────────┘
-```
+**Still to explore:**
+- Side-load or publish on the Play Store
+- Proper signing and CI/CD pipeline
+- End-to-end testing on real Android devices
 
 ### 🎨 Classic iPod UI Revamp
 

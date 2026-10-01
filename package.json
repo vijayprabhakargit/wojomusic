@@ -8,6 +8,8 @@
     "dev:client": "cd client && npm run dev",
     "start": "cd server && npm start",
     "build": "cd server && npm install && cd ../client && npm install && npm run build",
+    "build:android": "cd android-client && ./gradlew assembleDebug",
+    "build:web": "cd client && npm install && npm run build",
     "install:all": "cd server && npm install && cd ../client && npm install"
   },
   "devDependencies": {
