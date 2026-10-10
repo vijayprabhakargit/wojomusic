@@ -40,11 +40,10 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        mediaSession?.run {
-            player.release()
-            release()
-            mediaSession = null
-        }
+        // Only tear down the session here. The ExoPlayer instance is owned by
+        // the ExoPlayerManager singleton and must outlive this service.
+        mediaSession?.release()
+        mediaSession = null
         super.onDestroy()
     }
 }

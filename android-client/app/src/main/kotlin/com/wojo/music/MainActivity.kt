@@ -1,18 +1,23 @@
 package com.wojo.music
 
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.wojo.music.service.MusicService
 import com.wojo.music.ui.landing.LandingScreen
 import com.wojo.music.ui.room.RoomScreen
 import com.wojo.music.ui.room.RoomViewModel
@@ -23,6 +28,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Start the media session service so playback (and the notification /
+        // background playback) is wired to the shared ExoPlayer singleton.
+        try {
+            startService(Intent(this, MusicService::class.java))
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Could not start MusicService: ${e.message}")
+        }
+
         setContent {
             MaterialTheme(
                 colorScheme = WojoColors.darkColorScheme
@@ -32,25 +46,29 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    NavHost(navController = navController, startDestination = "landing") {
+                    NavHost(
+                        navController = navController,
+                        startDestination = "landing",
+                        // Keep content clear of the status bar (top) and the
+                        // navigation / home buttons (bottom) while still letting
+                        // the dark background paint behind them.
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                    ) {
                         composable("landing") {
                             LandingScreen(
-                                onRoomJoined = { roomId, myName, myRole ->
-                                    navController.navigate("room/$roomId/$myName/$myRole") {
+                                onRoomJoined = {
+                                    navController.navigate("room") {
                                         popUpTo("landing") { inclusive = false }
+                                        launchSingleTop = true
                                     }
                                 }
                             )
                         }
-                        composable("room/{roomId}/{myName}/{myRole}") { backStackEntry ->
-                            val roomId = backStackEntry.arguments?.getString("roomId") ?: ""
-                            val myName = backStackEntry.arguments?.getString("myName") ?: ""
-                            val myRole = backStackEntry.arguments?.getString("myRole") ?: "listener"
+                        composable("room") {
                             val viewModel: RoomViewModel = hiltViewModel()
                             RoomScreen(
-                                roomId = roomId,
-                                myName = myName,
-                                myRole = myRole,
                                 viewModel = viewModel,
                                 onLeave = {
                                     viewModel.leaveRoom()

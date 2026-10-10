@@ -24,9 +24,8 @@ fun ParticipantsSheet(
 ) {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.6f)
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .fillMaxSize()
+            .clip(RoundedCornerShape(12.dp))
             .background(WojoColors.DarkSurface)
             .padding(16.dp)
     ) {

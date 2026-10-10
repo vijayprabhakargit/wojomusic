@@ -20,6 +20,8 @@ data class Song(
     val title: String = "",
     val url: String = "",
     val source: String = "",           // "youtube", "local", "gdrive"
+    @SerialName("fileName") val fileName: String = "",
+    @SerialName("fileType") val fileType: String = "",
     @SerialName("videoId") val videoId: String? = null,
     val duration: Float = 0f,
     @SerialName("addedBy") val addedBy: String = "",
@@ -80,6 +82,22 @@ data class RolePromoted(
 data class QueueActionResult(
     val success: Boolean = false,
     val error: String? = null
+)
+
+@Serializable
+data class FileUploadResult(
+    val success: Boolean = false,
+    val error: String? = null,
+    val file: UploadedFile? = null
+)
+
+@Serializable
+data class UploadedFile(
+    val id: String = "",
+    @SerialName("fileName") val fileName: String = "",
+    @SerialName("publicUrl") val publicUrl: String = "",
+    @SerialName("fileType") val fileType: String = "audio/mpeg",
+    val size: Long = 0L
 )
 
 // ── Outbound payload models ──

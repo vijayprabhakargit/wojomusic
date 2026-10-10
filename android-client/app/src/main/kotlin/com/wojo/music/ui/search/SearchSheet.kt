@@ -1,7 +1,6 @@
 package com.wojo.music.ui.search
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,53 +18,41 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.wojo.music.WojoColors
-import com.wojo.music.protocol.SocketClient
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SearchSheet(
-    socket: SocketClient,
     onDismiss: () -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var searched by remember { mutableStateOf(false) }
+    val viewModel: SearchViewModel = hiltViewModel()
+    val query by viewModel.query.collectAsState()
+    val results by viewModel.results.collectAsState()
+    val loading by viewModel.loading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val searched by viewModel.searched.collectAsState()
+
     var addedIds by remember { mutableStateOf(setOf<String>()) }
-    var error by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
-    val debounceJob = remember { mutableStateOf<Job?>(null) }
+    val listState = rememberLazyListState()
 
-    fun doSearch(q: String) {
-        if (q.isBlank()) {
-            results = emptyList()
-            searched = false
-            return
+    // Infinite scroll: load the next page when scrolled near the end.
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            last >= results.size - 3 && results.isNotEmpty()
         }
-        loading = true
-        error = null
-        scope.launch {
-            try {
-                // TODO: Implement HTTP search via Ktor or the server's /api/music-search endpoint
-                delay(500)
-                loading = false
-                searched = true
-            } catch (e: Exception) {
-                error = e.message
-                loading = false
-            }
-        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) viewModel.loadMore()
     }
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.8f)
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .fillMaxSize()
+            .clip(RoundedCornerShape(12.dp))
             .background(WojoColors.DarkSurface)
             .padding(16.dp)
     ) {
@@ -86,77 +73,66 @@ fun SearchSheet(
             }
         }
 
-        // Search input with clear
-        Row(
+        // Search input
+        OutlinedTextField(
+            value = query,
+            onValueChange = { viewModel.onQueryChange(it) },
+            placeholder = { Text("Search YouTube Music...", color = WojoColors.TextSecondary) },
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { q ->
-                    query = q
-                    debounceJob.value?.cancel()
-                    debounceJob.value = scope.launch {
-                        delay(300)
-                        //doSearch(q) // placeholder - needs proper HTTP
+            singleLine = true,
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    TextButton(onClick = { viewModel.clear() }) {
+                        Text("✕", color = WojoColors.TextSecondary, fontSize = 14.sp)
                     }
-                },
-                placeholder = { Text("Search YouTube Music...", color = WojoColors.TextSecondary) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = WojoColors.Accent,
-                    unfocusedBorderColor = WojoColors.TextSecondary,
-                    cursorColor = WojoColors.Accent
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = { /*doSearch(query)*/ }
-                )
-            )
-            if (query.isNotEmpty()) {
-                TextButton(
-                    onClick = {
-                        query = ""
-                        results = emptyList()
-                        searched = false
-                        error = null
-                    }
-                ) {
-                    Text("✕", color = WojoColors.TextSecondary, fontSize = 14.sp)
                 }
-            }
-        }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = WojoColors.Accent,
+                unfocusedBorderColor = WojoColors.TextSecondary,
+                cursorColor = WojoColors.Accent,
+                focusedTextColor = WojoColors.TextPrimary,
+                unfocusedTextColor = WojoColors.TextPrimary
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { viewModel.search() })
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Results area
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (loading) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = WojoColors.Accent)
-                    }
-                }
-            }
-
             if (error != null) {
                 item {
-                    Text("✕ ${error}", color = WojoColors.Danger, fontSize = 13.sp)
+                    Text(
+                        "✕ $error",
+                        color = WojoColors.Danger,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
             }
 
-            if (!loading && searched && results.isEmpty()) {
+            if (!loading && searched && results.isEmpty() && error == null) {
                 item {
                     Text(
-                        "No results found",
+                        "No results found for \"$query\"",
                         color = WojoColors.TextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(20.dp)
+                    )
+                }
+            }
+
+            if (!searched && query.isBlank()) {
+                item {
+                    Text(
+                        "🔎 Search for any song or artist to add it to the queue",
+                        color = WojoColors.TextSecondary,
+                        fontSize = 13.sp,
                         modifier = Modifier.padding(20.dp)
                     )
                 }
@@ -167,41 +143,40 @@ fun SearchSheet(
                     item = item,
                     isAdded = addedIds.contains(item.videoId),
                     onAdd = {
-                        socket.addToQueue(
-                            com.wojo.music.protocol.Song(
-                                title = item.title,
-                                url = "https://www.youtube.com/watch?v=${item.videoId}",
-                                source = "youtube",
-                                videoId = item.videoId,
-                                duration = item.duration
-                            )
-                        ) { result ->
-                            if (result.success) {
-                                addedIds = addedIds + item.videoId
-                                scope.launch {
-                                    delay(2000)
-                                    addedIds = addedIds - item.videoId
-                                }
+                        viewModel.addToQueue(item) { success ->
+                            if (success) {
+                                scope.launch { addedIds = addedIds + item.videoId }
                             }
                         }
                     }
                 )
             }
+
+            if (loading) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = WojoColors.Accent)
+                    }
+                }
+            }
         }
     }
 }
 
-data class SearchResult(
-    val videoId: String,
-    val title: String,
-    val artist: String?,
-    val thumbnail: String?,
-    val duration: Float = 0f
-)
+private fun formatDuration(seconds: Float): String {
+    if (seconds <= 0f || !seconds.isFinite()) return ""
+    val total = seconds.toInt()
+    val m = total / 60
+    val s = total % 60
+    return "$m:${s.toString().padStart(2, '0')}"
+}
 
 @Composable
 private fun SearchResultItem(
-    item: SearchResult,
+    item: SearchSong,
     isAdded: Boolean,
     onAdd: () -> Unit
 ) {
@@ -214,7 +189,6 @@ private fun SearchResultItem(
             modifier = Modifier.padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail placeholder
             Surface(
                 modifier = Modifier.size(40.dp),
                 shape = RoundedCornerShape(4.dp),
@@ -237,11 +211,21 @@ private fun SearchResultItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    item.artist ?: "YouTube",
+                    item.artist.ifBlank { "YouTube" },
                     color = WojoColors.TextSecondary,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            val dur = formatDuration(item.duration)
+            if (dur.isNotEmpty()) {
+                Text(
+                    dur,
+                    color = WojoColors.TextSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp)
                 )
             }
 

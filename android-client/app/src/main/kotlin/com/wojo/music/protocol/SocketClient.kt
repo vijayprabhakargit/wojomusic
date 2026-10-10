@@ -1,5 +1,6 @@
 package com.wojo.music.protocol
 
+import io.socket.client.Ack
 import io.socket.client.IO
 import io.socket.client.Socket
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,9 +10,20 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class SocketClient(
-    private val serverUrl: String = ""
+    val baseUrl: String = DEFAULT_SERVER_URL
 ) {
-    private val socket: Socket = IO.socket(serverUrl, IO.Options().apply {
+    companion object {
+        // Production server. Override for local dev (e.g. http://192.168.0.102:3001).
+        const val DEFAULT_SERVER_URL = "https://wojomusic.onrender.com"
+    }
+
+    init {
+        if (baseUrl.isBlank()) {
+            throw Exception("SocketClient: serverUrl must not be empty. Set a valid server URL (e.g., http://192.168.0.102:3001 for local dev)")
+        }
+    }
+
+    private val socket: Socket = IO.socket(baseUrl, IO.Options().apply {
         transports = arrayOf("websocket", "polling")
         reconnection = true
         reconnectionAttempts = 10
@@ -41,19 +53,44 @@ class SocketClient(
 
     private val json = JsonHelper
 
-    // Helper: extract first JSONObject arg from a socket.io Ack callback
-    private fun firstJsonArg(args: Array<*>): JSONObject? =
-        args.firstOrNull() as? JSONObject
+    @Volatile
+    private var listenersRegistered = false
 
-    // Helper: build a callback that decodes the first arg into T
-    private inline fun <reified T> ackCallback(crossinline cb: (T) -> Unit): (Array<*>) -> Unit = { args ->
-        val data = firstJsonArg(args)
-        val result = if (data != null) json.decodeFromJson<T>(data.toString()) else null
-        if (result != null) cb(result)
+    // Helper: build a Java Ack callback that decodes the first arg into T
+    private inline fun <reified T> ackCallback(crossinline cb: (T) -> Unit): Ack = Ack { args: Array<*>? ->
+        try {
+            val data = args?.firstOrNull() as? JSONObject
+            if (data != null) {
+                val result = json.decodeFromJson<T>(data.toString())
+                cb(result)
+            }
+        } catch (e: Exception) {
+            // If deserialization fails, prevent crash — the ViewModel timeout
+            // watcher will eventually clear the loading state and show an error.
+        }
+    }
+
+    private fun firstJsonArg(args: Array<*>?): JSONObject? {
+        val first = args?.firstOrNull() ?: return null
+        return when (first) {
+            is JSONObject -> first
+            is String -> try { JSONObject(first) } catch (e: Exception) { null }
+            else -> null
+        }
     }
 
     fun connect() {
-        if (socket.connected()) return
+        if (socket.connected()) {
+            _connectionState.value = ConnectionState.CONNECTED
+            return
+        }
+        if (listenersRegistered) {
+            _connectionState.value = ConnectionState.CONNECTING
+            socket.connect()
+            return
+        }
+        listenersRegistered = true
+        _connectionState.value = ConnectionState.CONNECTING
 
         socket.on(Socket.EVENT_CONNECT) {
             _connectionState.value = ConnectionState.CONNECTED
@@ -68,8 +105,8 @@ class SocketClient(
         }
 
         socket.on("room:joined") { args ->
-            val data = firstJsonArg(args)
-            if (data != null) {
+            runCatching {
+                val data = firstJsonArg(args) ?: return@runCatching
                 val joined = json.decodeFromJson<RoomJoined>(data.toString())
                 _roomId.value = joined.roomId
                 _myInfo.value = joined.participant
@@ -81,22 +118,22 @@ class SocketClient(
         }
 
         socket.on("participants:update") { args ->
-            val data = args.firstOrNull() as? JSONArray
-            if (data != null) {
+            runCatching {
+                val data = args.firstOrNull() as? JSONArray ?: return@runCatching
                 _participants.value = json.decodeListFromJson<Participant>(data.toString())
             }
         }
 
         socket.on("queue:updated") { args ->
-            val data = args.firstOrNull() as? JSONArray
-            if (data != null) {
+            runCatching {
+                val data = args.firstOrNull() as? JSONArray ?: return@runCatching
                 _queue.value = json.decodeListFromJson<Song>(data.toString())
             }
         }
 
         socket.on("player:state") { args ->
-            val data = firstJsonArg(args)
-            if (data != null) {
+            runCatching {
+                val data = firstJsonArg(args) ?: return@runCatching
                 _playerState.value = json.decodeFromJson<PlayerState>(data.toString())
             }
         }
@@ -107,30 +144,40 @@ class SocketClient(
         }
 
         socket.on("chat:message") { args ->
-            val data = firstJsonArg(args)
-            if (data != null) {
+            runCatching {
+                val data = firstJsonArg(args) ?: return@runCatching
                 val msg = json.decodeFromJson<ChatMessage>(data.toString())
                 _chatMessages.value = _chatMessages.value + msg
             }
         }
 
         socket.on("chat:system") { args ->
-            val message = args.firstOrNull()?.toString() ?: return@on
-            val systemMsg = ChatMessage(
-                id = System.currentTimeMillis().toString(36),
-                sender = "\uD83C\uDFB5 System",
-                message = message,
-                timestamp = System.currentTimeMillis(),
-                isSystem = true
-            )
-            _chatMessages.value = _chatMessages.value + systemMsg
+            runCatching {
+                val message = args.firstOrNull()?.toString() ?: return@runCatching
+                val systemMsg = ChatMessage(
+                    id = System.currentTimeMillis().toString(36),
+                    sender = "\uD83C\uDFB5 System",
+                    message = message,
+                    timestamp = System.currentTimeMillis(),
+                    isSystem = true
+                )
+                _chatMessages.value = _chatMessages.value + systemMsg
+            }
         }
 
         socket.on("role:promoted") { args ->
-            val data = firstJsonArg(args)
-            if (data != null) {
+            runCatching {
+                val data = firstJsonArg(args) ?: return@runCatching
                 val role = data.optString("role")
-                _myInfo.value = _myInfo.value?.copy(role = role)
+                if (role.isNotBlank()) {
+                    _myInfo.value = _myInfo.value?.copy(role = role)
+                    val me = _myInfo.value
+                    if (me != null) {
+                        _participants.value = _participants.value.map {
+                            if (it.name == me.name) it.copy(role = role) else it
+                        }
+                    }
+                }
             }
         }
 
@@ -140,6 +187,7 @@ class SocketClient(
     fun disconnect() {
         socket.off()
         socket.disconnect()
+        listenersRegistered = false
         _roomId.value = null
         _myInfo.value = null
         _participants.value = emptyList()
@@ -244,11 +292,20 @@ class SocketClient(
     }
 
     // ── File upload ──
-
-    fun uploadFile(fileBuffer: ByteArray, fileName: String, fileType: String, callback: ((QueueActionResult) -> Unit)? = null) {
+    // The server expects `fileBuffer` to be a real binary attachment (Node Buffer).
+    // socket.io's parser deconstructs a nested ByteArray into a binary attachment,
+    // so the payload must be built as a JSONObject holding the byte[] directly
+    // (not serialized to a JSON array of integers).
+    fun uploadFile(fileBuffer: ByteArray, fileName: String, fileType: String, callback: ((FileUploadResult) -> Unit)? = null) {
         val rid = _roomId.value ?: return
-        val ack = callback?.let { ackCallback<QueueActionResult>(it) }
-        socket.emit("file:upload", json.encodeToJson(FileUploadPayload(rid, fileBuffer, fileName, fileType)), ack)
+        val ack = callback?.let { ackCallback<FileUploadResult>(it) }
+        val payload = JSONObject().apply {
+            put("roomId", rid)
+            put("fileBuffer", fileBuffer)
+            put("fileName", fileName)
+            put("fileType", fileType)
+        }
+        socket.emit("file:upload", payload, ack)
     }
 
     // ── YouTube ──

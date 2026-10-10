@@ -34,9 +34,8 @@ fun QueueSheet(
     // Simple drag-to-reorder is handled via buttons for now on Android
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.7f)
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .fillMaxSize()
+            .clip(RoundedCornerShape(12.dp))
             .background(WojoColors.DarkSurface)
             .padding(16.dp)
     ) {
@@ -153,9 +152,9 @@ private fun QueueItem(
                     Text(" · ", color = WojoColors.TextSecondary, fontSize = 10.sp)
                     Text(
                         when (song.source) {
-                            "gdrive" -> "? Drive"
-                            "youtube" -> "?? YouTube"
-                            else -> "?? Local"
+                            "gdrive" -> "☁ Drive"
+                            "youtube" -> "🎬 YouTube"
+                            else -> "📁 Local"
                         },
                         color = WojoColors.TextSecondary,
                         fontSize = 9.sp
