@@ -299,6 +299,8 @@ Reimagine the interface with a **click-wheel inspired layout** while keeping the
 ### Quick Wins (shorter-term)
 
 - [x] **YouTube link support** — paste a link to add to queue (now supports video, Shorts, youtu.be links)
+- [ ] **Android YouTube search UX with the keyboard open** — when searching YouTube on Android, the on-screen keyboard covers most of the results; make the search panel keyboard-aware (compact/scrollable results, proper IME insets) so it stays seamless, and keep the flow consistent with the web client opened in Android Chrome
+- [ ] **YouTube recommendations** — suggest related videos based on the songs searched and played, so users can quickly queue more tracks from the same vibe/artist
 - [ ] **Playlist import** — upload .m3u, .m3u8, .pls files or paste playlist URLs
 - [ ] **Volume control per participant** — each person adjusts their own volume
 - [ ] **Song duration display in queue** — show how long each song is
