@@ -31,6 +31,7 @@ import androidx.lifecycle.viewModelScope
 import com.wojo.music.R
 import com.wojo.music.WojoColors
 import com.wojo.music.protocol.ConnectionState
+import com.wojo.music.protocol.SessionStore
 import com.wojo.music.protocol.SocketClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -43,7 +44,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LandingViewModel @Inject constructor(
-    val socket: SocketClient
+    val socket: SocketClient,
+    private val sessionStore: SessionStore
 ) : ViewModel() {
 
     private val _loading = MutableStateFlow(false)
@@ -58,7 +60,8 @@ class LandingViewModel @Inject constructor(
     val joinedRoomId: StateFlow<String?> = _joinedRoomId.asStateFlow()
 
     init {
-        socket.connect()
+        // The socket is connected by MainActivity (app-level) so it survives
+        // navigation and backgrounding.
 
         // Timeout watcher: auto-clear loading after 20s to prevent infinite spinner
         viewModelScope.launch {
@@ -98,6 +101,7 @@ class LandingViewModel @Inject constructor(
         socket.createRoom(name.trim(), role) { result ->
             _loading.value = false
             if (result.success && result.roomId != null) {
+                sessionStore.save(result.roomId, name.trim(), role)
                 _joinedRoomId.value = result.roomId
             } else {
                 _error.value = result.error ?: "Failed to create room"
@@ -115,7 +119,9 @@ class LandingViewModel @Inject constructor(
         socket.joinRoom(roomId.trim(), name.trim(), role) { result ->
             _loading.value = false
             if (result.success) {
-                _joinedRoomId.value = socket.roomId.value ?: roomId.trim().uppercase()
+                val joined = socket.roomId.value ?: roomId.trim().uppercase()
+                sessionStore.save(joined, name.trim(), role)
+                _joinedRoomId.value = joined
             } else {
                 _error.value = result.error ?: "Failed to join room"
             }

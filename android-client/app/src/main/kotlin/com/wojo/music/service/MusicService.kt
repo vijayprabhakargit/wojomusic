@@ -7,9 +7,11 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.wojo.music.MainActivity
+import com.wojo.music.R
 import com.wojo.music.playback.ExoPlayerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -24,6 +26,15 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        // Ensure a media notification (and foreground playback) is shown while
+        // a song plays, even in the background.
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId("wojo_playback")
+                .setChannelName(R.string.media_channel_name)
+                .build()
+        )
+
         val sessionActivityIntent = Intent(this, MainActivity::class.java)
         val sessionActivityPendingIntent = PendingIntent.getActivity(
             this, 0, sessionActivityIntent,
@@ -33,6 +44,11 @@ class MusicService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, playerManager.player)
             .setSessionActivity(sessionActivityPendingIntent)
             .build()
+
+        // Register the session with the service so Media3 drives the media
+        // notification and the foreground service (without a controller bound
+        // from the UI, the session would otherwise never be added).
+        mediaSession?.let { addSession(it) }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

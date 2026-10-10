@@ -26,6 +26,9 @@
 -keep class org.mozilla.javascript.** { *; }
 -keep class org.mozilla.classfile.ClassFileWriter
 -dontwarn org.mozilla.javascript.tools.**
+-dontwarn org.mozilla.javascript.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
 -dontwarn org.schabi.newpipe.extractor.**
 -keep class org.schabi.newpipe.extractor.** { *; }
 -keep class com.wojo.music.playback.** { *; }

@@ -85,25 +85,36 @@ export default function Room({ socket, onLeave }) {
   useEffect(() => {
     let retryTimer = null;
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
+    const resume = () => {
       if (!playerState?.isPlaying) return;
 
-      const resume = () => {
-        if (isYtMode && ytRef.current) {
-          const expected = livePosition(playerState);
-          ytRef.current.seek(expected);
-          ytRef.current.play();
-        } else if (audioRef.current?.paused) {
-          const expected = livePosition(playerState);
-          audioRef.current.currentTime = expected;
-          audioRef.current.play().catch(err => console.error('Visibility resume error:', err));
-        }
-      };
+      // Never yank playback backwards for small drift. Only correct when the
+      // local player is genuinely out of sync (> 2s) or the browser paused /
+      // stalled it while the tab was hidden.
+      const expected = livePosition(playerState);
 
+      if (isYtMode && ytRef.current) {
+        const s = ytRef.current.getPlayerState?.();
+        const playing = s === 1 || s === 3;
+        const t = ytRef.current.getPosition?.() || 0;
+        if (!playing) ytRef.current.play();
+        if (t > 0 && Math.abs(t - expected) > 2) ytRef.current.seek(expected);
+      } else if (audioRef.current) {
+        const audio = audioRef.current;
+        if (audio.paused) {
+          if (Math.abs((audio.currentTime || 0) - expected) > 2) {
+            audio.currentTime = expected;
+          }
+          audio.play().catch(err => console.error('Visibility resume error:', err));
+        }
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
       resume();
-      // Retry after a short delay because the YouTube iframe may need time
-      // to wake up after the tab becomes visible (especially on mobile).
+      // Retry once shortly after: the YouTube iframe may need a moment to wake
+      // up after the tab becomes visible.
       retryTimer = setTimeout(resume, 750);
     };
 
@@ -129,14 +140,16 @@ export default function Room({ socket, onLeave }) {
         // 1 = playing, 3 = buffering; anything else while server says
         // playing means the player is stuck
         if (s !== 1 && s !== 3) {
+          const t = ytRef.current.getPosition?.() || 0;
           const expected = livePosition(playerState);
-          ytRef.current.seek(expected);
+          if (t > 0 && Math.abs(t - expected) > 2) ytRef.current.seek(expected);
           ytRef.current.play();
         }
       } else if (audioRef.current?.paused) {
+        const audio = audioRef.current;
         const expected = livePosition(playerState);
-        audioRef.current.currentTime = expected;
-        audioRef.current.play().catch(() => {});
+        if (Math.abs((audio.currentTime || 0) - expected) > 2) audio.currentTime = expected;
+        audio.play().catch(() => {});
       }
     }, 2000);
 

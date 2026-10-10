@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
@@ -139,17 +140,26 @@ class ExoPlayerManager @Inject constructor(
                     if (currentKey != key) return@withContext
                     val playUri = file?.let { Uri.fromFile(it).toString() } ?: srcUrl ?: return@withContext
                     Log.d(TAG, "Playing youtube \"${song.title}\" ${if (file != null) "from cache" else "directly"}")
-                    setMediaAndPlay(playUri, startPositionSeconds)
+                    setMediaAndPlay(playUri, startPositionSeconds, song.title, "YouTube")
                 }
             }
         } else {
             Log.d(TAG, "Loading ${song.source} song \"${song.title}\" from $key")
-            setMediaAndPlay(key, startPositionSeconds)
+            setMediaAndPlay(key, startPositionSeconds, song.title, song.addedBy)
         }
     }
 
-    private fun setMediaAndPlay(uri: String, startPositionSeconds: Float) {
-        player.setMediaItem(MediaItem.fromUri(uri))
+    private fun setMediaAndPlay(uri: String, startPositionSeconds: Float, title: String, artist: String) {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title.ifBlank { "Wojo Music" })
+            .setArtist(artist.ifBlank { "Wojo Music" })
+            .build()
+        player.setMediaItem(
+            MediaItem.Builder()
+                .setUri(uri)
+                .setMediaMetadata(metadata)
+                .build()
+        )
         player.prepare()
         if (startPositionSeconds > 0f) {
             player.seekTo((startPositionSeconds * 1000).toLong())

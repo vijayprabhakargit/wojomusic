@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.wojo.music.playback.ExoPlayerManager
 import com.wojo.music.protocol.PlayerState
+import com.wojo.music.protocol.SessionStore
 import com.wojo.music.protocol.SocketClient
 import com.wojo.music.protocol.Song
 import com.wojo.music.protocol.SyncManager
@@ -21,7 +22,8 @@ import javax.inject.Inject
 class RoomViewModel @Inject constructor(
     val socket: SocketClient,
     val playerManager: ExoPlayerManager,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val sessionStore: SessionStore
 ) : ViewModel() {
 
     private val _localPosition = MutableStateFlow(0f)
@@ -157,15 +159,17 @@ class RoomViewModel @Inject constructor(
         playerManager.pause()
         playerManager.stop()
         loadedSongId = null
+        sessionStore.clear()
         socket.leaveRoom()
     }
 
     override fun onCleared() {
+        // Playback is owned by the shared player + media service, so we do NOT
+        // pause/stop here: backgrounding (which can destroy the Activity) must
+        // keep the song playing with its notification. Explicit exits go through
+        // leaveRoom(). Only reset the sync guard so a future room can re-start.
         retryJob?.cancel()
         syncManager.stop()
-        playerManager.setOnEnded(null)
-        playerManager.setOnError(null)
-        playerManager.pause()
         super.onCleared()
     }
 
