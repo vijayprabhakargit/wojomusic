@@ -21,3 +21,11 @@
 # Suppress Android-incompatible Ktor debug detector references
 -dontwarn java.lang.management.ManagementFactory
 -dontwarn java.lang.management.RuntimeMXBean
+
+# NewPipeExtractor (uses Rhino for YouTube signature / n-param transforms)
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.tools.**
+-dontwarn org.schabi.newpipe.extractor.**
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep class com.wojo.music.playback.** { *; }

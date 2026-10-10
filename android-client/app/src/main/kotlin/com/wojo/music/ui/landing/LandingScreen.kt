@@ -1,6 +1,7 @@
 package com.wojo.music.ui.landing
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wojo.music.R
 import com.wojo.music.WojoColors
 import com.wojo.music.protocol.ConnectionState
 import com.wojo.music.protocol.SocketClient
@@ -184,7 +187,11 @@ fun LandingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ── Header ──
-            Text("🐱", fontSize = 40.sp)
+            Image(
+                painter = painterResource(id = R.drawable.ic_cat_headphones),
+                contentDescription = "Wojo Music",
+                modifier = Modifier.size(64.dp)
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 "WOJO MUSIC",

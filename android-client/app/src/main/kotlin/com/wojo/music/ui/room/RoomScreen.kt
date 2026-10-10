@@ -1,6 +1,7 @@
 package com.wojo.music.ui.room
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -9,10 +10,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wojo.music.R
 import com.wojo.music.WojoColors
 import com.wojo.music.protocol.ConnectionState
 import com.wojo.music.ui.queue.QueueSheet
@@ -67,12 +70,20 @@ fun RoomScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(
-                    "🐱 Wojo Music",
-                    color = WojoColors.Accent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_cat_headphones),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "Wojo Music",
+                        color = WojoColors.Accent,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 if (!isConnected) {
                     Text("⚠ Disconnected", color = WojoColors.Danger, fontSize = 11.sp)
                 }
@@ -118,11 +129,13 @@ fun RoomScreen(
             duration = duration,
             isPlaying = playerState?.isPlaying ?: false,
             canControl = canControl,
+            role = myInfo?.role,
             formatTime = viewModel::formatTime,
             onPlay = viewModel::play,
             onPause = viewModel::pause,
             onNext = viewModel::nextTrack,
-            onPrev = viewModel::prevTrack
+            onPrev = viewModel::prevTrack,
+            onSeek = viewModel::seek
         )
 
         Spacer(modifier = Modifier.height(8.dp))

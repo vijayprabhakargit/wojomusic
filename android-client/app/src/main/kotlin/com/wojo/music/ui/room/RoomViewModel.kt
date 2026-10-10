@@ -2,6 +2,7 @@ package com.wojo.music.ui.room
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.wojo.music.playback.ExoPlayerManager
 import com.wojo.music.protocol.PlayerState
 import com.wojo.music.protocol.SocketClient
@@ -45,6 +46,7 @@ class RoomViewModel @Inject constructor(
         // listeners just follow the server state).
         playerManager.setOnEnded {
             val role = socket.myInfo.value?.role
+            Log.d("RoomViewModel", "Track ended; role=$role")
             if (role == "admin" || role == "moderator") {
                 socket.nextTrack()
             }
